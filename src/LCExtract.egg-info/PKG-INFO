@@ -1,0 +1,38 @@
+Metadata-Version: 2.1
+Name: LCExtract
+Version: 0.1.5
+Summary: Small app to retrieve astronomical object photometry over time (lightcurve)
+Home-page: https://github.com/Pommers/LCExtract
+Author: Richard Pomeroy
+Author-email: RTPomeroy@uclan.ac.uk
+License: UNKNOWN
+Project-URL: Bug Tracker, https://github.com/Pommers/LCExtract/issues
+Description: ## LCExtract
+        ### Quickstart
+        To run application from python console 
+        >`from LCExtract.LCExtract import LCExtract`
+        > 
+        >`LCExtract()`
+        ### Description
+        Currently a standalone application written in **Python** to take astronomical object positions and search for photometry data over time which produces a _lightcurve_ for the object.
+        Queries data from the [Zwicky Transient Facility](https://www.ztf.caltech.edu) (ZTF) but other time domain based facilities will be added in to the query over time to provide a more comprehensive history of the object's luminosity variation.
+        
+        Options selectable by the user are
+        * File or Manual entry
+          * File input requires `name`, `RA`, `DEC`, `description` CSV separation - see example file [test_objects.csv](https://github.com/Pommers/LCExtract/blob/master/data/test_objects.csv)
+          * Manual entry allows named or positional coordinate entry
+        * Photometric filter selection
+          * Filters `g`, `r`, `i`, `z` are default filters, but note
+            * a subset is user-selectable
+            * not all filters available within archive(s), e.g., ZTF uses only `g`, `r`, `i` filters
+            * not all filters available for an object
+        
+        Application will calculate a number of summary statistics from the data returned for an object and provide a plot of any archive data returned.
+        ### Data files
+        Data files are expected to be located in the working directory, preferrably under a subdirectory `data/`
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown

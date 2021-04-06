@@ -1,16 +1,16 @@
 ## LCExtract
 ### Quickstart
-Run application from python console 
+To run application from python console 
 >`from LCExtract.LCExtract import LCExtract`
 > 
->`LCExtract`
+>`LCExtract()`
 ### Description
 Currently a standalone application written in **Python** to take astronomical object positions and search for photometry data over time which produces a _lightcurve_ for the object.
 Queries data from the [Zwicky Transient Facility](https://www.ztf.caltech.edu) (ZTF) but other time domain based facilities will be added in to the query over time to provide a more comprehensive history of the object's luminosity variation.
 
 Options selectable by the user are
 * File or Manual entry
-  * File input requires `name`, `RA`, `DEC`, `description` CSV separation - see example file [test_objects.csv](https://github.com/Pommers/LCExtract/blob/main/test_objects.csv)
+  * File input requires `name`, `RA`, `DEC`, `description` CSV separation - see example file [test_objects.csv](https://github.com/Pommers/LCExtract/blob/master/data/test_objects.csv)
   * Manual entry allows named or positional coordinate entry
 * Photometric filter selection
   * Filters `g`, `r`, `i`, `z` are default filters, but note
