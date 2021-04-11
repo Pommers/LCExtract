@@ -5,9 +5,17 @@ import time
 from numbers import Number
 
 
+class Namespace(object):
+    """
+    helps referencing object in a dictionary as dict.key instead of dict['key']
+    """
+    def __init__(self, adict):
+        self.__dict__.update(adict)
+
+
 class Spinner:
     busy = False
-    delay = 0.1
+    delay = 0.2
 
     def __init__(self, delay=None):
         self.spinner_generator = itertools.cycle('-/|\\')

@@ -26,12 +26,22 @@ from astropy.table import Table
 from LCExtract import config
 
 
+def setArchiveUsage():
+    print('Please specify which archives to query.')
+    print('p - Pan-STARRS')
+    print('z - Zwicky Transient Facility')
+    getch = input(f'Enter for default ({config.archAvail})')
+    archives = config.archAvail if getch == '' else re.findall(f'[{config.archAvail}]', getch.lower())
+    return archives
+
+
 def setFilterUsage():
     # uses global filterSelection
 
-    getch = input('Please select filters to display (e.g. griz)....: ')
-    # if no entry set default to griz, or check for valid filter combinations
-    config.filterSelection = getch
+    getch = input('Please select filters to display (e.g. grizy)....: ')
+    # if no entry set use default for session
+    if getch != '':
+        config.filterSelection = getch
     print()
 
 

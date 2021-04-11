@@ -17,7 +17,8 @@ Summary
 """
 # Self-authored package modules for inclusion
 from LCExtract.dataretrieve import DataClass
-from LCExtract.entry import getObjects, setFilterUsage
+from LCExtract.entry import getObjects, setFilterUsage, setArchiveUsage
+from LCExtract.config import archives
 
 
 def startup():
@@ -31,11 +32,13 @@ def LCExtract():
 
     startup()
     objectsList = getObjects()
+    archiveList = setArchiveUsage()
     setFilterUsage()
-    for i in objectsList:
-        objectHolder = DataClass(i['Name'], i['RA'], i['DEC'], i['Description'])
-        if objectHolder.getData():
-            objectHolder.objectOutput()
-        else:
-            print(f'Object name: {i["Name"]} - No data available or retrieved')
-            print()
+    for a in archiveList:
+        for i in objectsList:
+            objectHolder = DataClass(i['Name'], i['RA'], i['DEC'], i['Description'])
+            if objectHolder.getData(archives[a]):
+                objectHolder.objectOutput(archives[a])
+            else:
+                print(f'Object name: {i["Name"]} - No data available or retrieved from {archives[a].name}')
+                print()
