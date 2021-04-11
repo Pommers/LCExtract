@@ -40,9 +40,7 @@ except ImportError:  # Python 2.x
     import httplib
 
 
-def ps1cone(ra, dec, radius, table="mean", release="dr1", format="csv", columns=None,
-            baseurl=config.baseURL.PanSTARRS, verbose=False,
-            **kw):
+def ps1cone(ra, dec, radius, table="mean", release="dr1", format="csv", columns=None, verbose=False, **kw):
     """Do a cone search of the PS1 catalog
 
     **kw: other parameters (e.g., 'nDetections.min':2)
@@ -74,8 +72,7 @@ def ps1cone(ra, dec, radius, table="mean", release="dr1", format="csv", columns=
     data['ra'] = ra
     data['dec'] = dec
     data['radius'] = radius
-    return ps1search(table=table, release=release, format=format, columns=columns,
-                     baseurl=baseurl, verbose=verbose, **data)
+    return ps1search(table=table, release=release, format=format, columns=columns, verbose=verbose, **data)
 
 
 def ps1search(table="mean", release="dr1", format="csv", columns=None, verbose=False, **kw):
@@ -97,7 +94,7 @@ def ps1search(table="mean", release="dr1", format="csv", columns=None, verbose=F
     :rtype: str
     """
 
-    baseurl = config.baseURL.PanSTARRS  # base URL for the Pan-STARRS request from MAST in config file
+    baseurl = config.panstarrs.URL  # base URL for the Pan-STARRS request from MAST in config file
     data = kw.copy()
     if not data:
         raise ValueError("You must specify some parameters for search")
@@ -272,7 +269,8 @@ def getDetections(tab):
     :rtype: Table
     """
     objID = tab['objID'][0]  # only first object selected...
-    dConstraints = {'objID': objID}
+    filters = [i + 1 for i, n in enumerate('grizy') if n in config.filterSelection]
+    dConstraints = {'objID': objID, 'filterID': filters}
     dColumns = ("""objID,detectID,filterID,obsTime,ra,dec,psfFlux,psfFluxErr,psfMajorFWHM,psfMinorFWHM,
                 psfQfPerfect,apFlux,apFluxErr,infoFlag,infoFlag2,infoFlag3""").split(',')
     # strip blanks and weed out blank and commented-out values

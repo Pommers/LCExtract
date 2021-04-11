@@ -5,7 +5,7 @@ dataretrieve.py: Data retrieval and output class
 
 Summary
 -------
-Contains DataClass which allows collection of lightcurve information for a specific object, based on position.
+Contains AstroObjectClass which allows collection of lightcurve information for a specific object, based on position.
 Implements specific methods for download of information from archives
 
 1. Zwicky Transient Facility
@@ -16,6 +16,7 @@ Notes
 -----
 
 """
+import collections
 import io
 import re
 from urllib.error import HTTPError
@@ -27,13 +28,13 @@ from astropy.io.votable import parse
 from astropy.io import ascii
 # Set up matplotlib
 from matplotlib import pyplot as plt
+# from matplotlib import artist
 from scipy import stats
 
 from LCExtract import config
 from LCExtract.coord import CoordClass, to_string
 from LCExtract.utilities import Spinner
-from LCExtract.PanSTARRS import ps1cone, ps1search, ps1metadata
-from LCExtract.PanSTARRS import checklegal, mastQuery, resolve, getDetections
+from LCExtract.PanSTARRS import ps1cone, getDetections
 
 """filter dict and list for reference in output iteration"""
 ZTFfilters = {"zg": 0, "zr": 1, "zi": 2}
@@ -80,23 +81,23 @@ def getLightCurveDataZTF(coordinates: CoordClass, radius,
     :rtype: tuple
 
     """
-    filterStr = getFilterStr('gri')  # limit filters (requested) to ZTF subset
+    filterStr = getFilterStr(config.ztf.filters)  # limit filters (requested) to ZTF subset
 
     status = True
     delim = "%20"
     ra = coordinates.ra_str() + delim
     dec = coordinates.dec_str() + delim
-    radius_str = to_string(radius, 4)
+    radius_str = to_string(radius, 5)
     if column_filters is None:
         column_filters = {}
 
     queryPart = "nph_light_curves"
     pos = "POS=CIRCLE" + delim + ra + dec + radius_str
     bandname = "BANDNAME=" + filterStr
-    format = "FORMAT=" + return_type
+    form = "FORMAT=" + return_type
     badCatFlagsMask = "BAD_CATFLAGS_MASK=32768"
 
-    url_payload = f"{config.baseURL.ZTF}{queryPart}?{pos}&{bandname}&{format}&{badCatFlagsMask}"
+    url_payload = f"{config.ztf.URL}{queryPart}?{pos}&{bandname}&{form}&{badCatFlagsMask}"
 
     # establish http connection
     # http = urllib3.PoolManager()
@@ -114,7 +115,7 @@ def getLightCurveDataZTF(coordinates: CoordClass, radius,
                 raise
 
     if siteData.status != 200:  # Ensure good response is received back from IRSA
-        status = False
+        return config.badResponse
 
     memFile = io.BytesIO(siteData.read())
 
@@ -122,9 +123,14 @@ def getLightCurveDataZTF(coordinates: CoordClass, radius,
     table = votable.get_first_table().to_table(use_names_over_ids=True)
 
     if not len(table):  # Check table actually has data in it (i.e. possible no lightcurve data exists)
-        status = False
+        return config.badResponse
 
-    return status, table.to_pandas()
+    tablePD = table.to_pandas()
+
+    fi = pd.Series({"zg": "g", "zr": "r", "zi": "i"})  # map filter ID from ZTF code (used as key in output)
+    tablePD['filterID'] = tablePD['filtercode'].map(fi)
+
+    return status, tablePD
 
 
 def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_filters=None):
@@ -136,8 +142,8 @@ def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_f
     Ref. https://outerspace.stsci.edu/display/PANSTARRS/Pan-STARRS1+data+archive+home+page
 
 
-    :param coordinates: Coordinates of object expressed CoordClass notation in J2000 RA Dec (Decimal) format.
-    :type coordinates: CoordClass
+    :param coords: Coordinates of object expressed CoordClass notation in J2000 RA Dec (Decimal) format.
+    :type coords: CoordClass
     :param radius: Radius of cone search ** in degrees ** for passing to Pan-STARRS
     :type radius: float
     :param return_type: For selection of different return types, e.g. "VOTABLE" (Default), "HTML", "CSV"
@@ -178,7 +184,7 @@ def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_f
                 raise
 
     if not results:
-        return False
+        return config.badResponse
 
     # convert to table
     tab = ascii.read(results)
@@ -203,9 +209,9 @@ def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_f
                 raise
 
     if not len(dTab):  # Check table actually has data in it (i.e. possible no lightcurve data exists)
-        status = False
+        return config.badResponse
     else:
-        dTab['mag'] = -2.5 * np.log10(dTab['psfFlux']) + 8.90
+        dTab['psfMag'] = -2.5 * np.log10(dTab['psfFlux']) + 8.90
 
     return status, dTab.to_pandas()
 
@@ -229,7 +235,7 @@ def filterLineOut(statStr, statDict, lenDP=3, lenStr=30, lenVal=8, valueType=flo
     print(f'{statStr:{lenStr}}', end='')
     for key in config.filterSelection:
         if key in statDict.keys():
-            if isinstance(statDict[key], np.float64):
+            if isinstance(statDict[key], (np.float64, np.float32)):
                 print(f'{statDict[key]:^{lenVal}.{lenDP}f}', end='')
             elif isinstance(statDict[key], np.int64):
                 print(f'{statDict[key]:^{lenVal}}', end='')
@@ -238,14 +244,14 @@ def filterLineOut(statStr, statDict, lenDP=3, lenStr=30, lenVal=8, valueType=flo
     print()
 
 
-class DataClass:
-    """Class representing the data for an astronomical object
+class AstroObjectClass:
+    """Class representing an astronomical object
 
     """
 
     def __init__(self, objectName, ra, dec, subtitle=None):
         """
-        DataClass initialises name and object position.
+        AstroObjectClass initialises name and object position.
         Other default parameters for searches also set as well as structure for data.
 
         :param subtitle: A string used for information about the object, e.g. location, type/min-desc,
@@ -259,17 +265,34 @@ class DataClass:
         :type dec: float
         """
 
+        # self.data = np
+        # self.radius = 1 / 3600  # 1 arcseconds
+        # self.filters = 'g,r,i,z'
         self.objectName = objectName
         self.shortDesc = subtitle
-        self.radius = 1 / 3600  # 1 arcseconds
-        self.table = pd.DataFrame()
-        self.data = np
         self.pos = CoordClass(ra, dec)
+
+    def preparePlot(self):
+        fig, ax = plt.subplots(nrows=1, ncols=1, sharex='all', sharey='all')
+        ax.set_xlabel('Time [MJD]', fontsize=14)
+        ax.set_ylabel('Mag', fontsize=14)
+        fig.suptitle(f'{self.objectName}', fontsize=16)
+        ax.set_title(self.shortDesc, fontsize=12)
+
+        return fig, ax
+
+
+class AODataClass():
+    """Class for storing and manipulating the data for an astronomical object"""
+
+    def __init__(self, AO: AstroObjectClass):
+        self.table = pd.DataFrame()
         self.samples = {}
         self.mad = {}
         self.SD = {}
         self.median = {}
-        self.filters = 'g,r,i,z'
+        self.mean = {}
+        self.AO = AO
 
     def getLightCurveData(self, catalog, radius=None, return_type='VOTABLE'):
         """
@@ -280,22 +303,22 @@ class DataClass:
 
         :param radius: Cone search radius in arcseconds. Optional
         :type radius: float
-        :param catalog:
-        :type catalog: str
+        :param catalog: Named tuple representing archive under query
+        :type catalog: config.Archive
         :param return_type: Type of return format required. Should be 'VOTABLE'
         :type return_type: str
         :return: Successful extract and data ingested
         :rtype: bool
         """
         if radius is None:
-            radiusDeg = self.radius
+            radiusDeg = config.coneRadius
         else:
             radiusDeg = radius / 3600
 
-        if catalog[0] == 'ZTF':
-            response = getLightCurveDataZTF(self.pos, radiusDeg, return_type)
-        elif catalog[0] == 'PanSTARRS':
-            response = getLightCurveDataPanSTARRS(self.pos, radiusDeg, return_type='CSV')
+        if catalog.name == 'ZTF':
+            response = getLightCurveDataZTF(self.AO.pos, radiusDeg, return_type)
+        elif catalog.name == 'PanSTARRS':
+            response = getLightCurveDataPanSTARRS(self.AO.pos, radiusDeg, return_type='CSV')
         else:
             return False
 
@@ -325,9 +348,6 @@ class DataClass:
         for name, group in series:
             self.mad[name] = stats.median_abs_deviation(series.get_group(name))
 
-        # TODO Need to make grouping more generic, i.e. if 'filtercode' is not the column name, or if only one filter
-        #  value exists for a data set. This applies to all summary statistics below.
-
     def setSD(self, col_name, group_col):
         """Method to set the standard deviation
 
@@ -352,6 +372,18 @@ class DataClass:
         """
         self.median = self.table.groupby(group_col)[col_name].median()
 
+    def setMean(self, col_name, group_col):
+        """Method to set the median of data
+
+        Value(s) set within the data structure for each individual filter within the data
+
+        :param group_col:
+        :type group_col:
+        :param col_name: Column name on which to apply the summary, e.g. 'mag'
+        :type col_name: str
+        """
+        self.mean = self.table.groupby(group_col)[col_name].mean()
+
     def addColourColumn(self, series):
         """Method to add a colour column
 
@@ -364,32 +396,6 @@ class DataClass:
         c = pd.Series({"g": "green", "r": "red", "i": "indigo", "z": "blue", "y": "black"})
         self.table['colour'] = self.table[series].map(c)
 
-    def plot(self, x, y, series):
-        """Method to encapsulate the plotting of data
-
-        Sets colour column to distinguish different filters used in data, then sets up plot from given
-        X and Y columns. Title is set to object name.
-
-        :param x: X-axis column name and title
-        :type x: tuple
-        :param y: Y-axis column name and title
-        :type y: tuple
-        :param series: Column name to use to set colour of series
-        :type series: str
-
-        """
-        if True:  # TODO Need to sort this out for different catalogs
-            self.addColourColumn(series)
-            colors = self.table['colour']
-
-        plt.scatter(self.table[x[0]], self.table[y[0]], c=colors, marker='*')
-        plt.ylim(reversed(plt.ylim()))  # flip the y-axis
-        plt.xlabel(x[1], fontsize=14)
-        plt.ylabel(y[1], fontsize=14)
-        plt.suptitle(self.objectName, fontsize=16)
-        plt.title(self.shortDesc, fontsize=12)
-        plt.show()
-
     def getData(self, archive):
         """Method to encapsulate extraction of data
 
@@ -400,22 +406,59 @@ class DataClass:
         :rtype: bool
         """
 
-        status = True
         if self.getLightCurveData(catalog=archive):
-            self.setSamples('mag', 'filtercode')
-            self.setMad('mag', 'filtercode')
-            self.setSD('mag', 'filtercode')
-            self.setMedian('mag', 'filtercode')
-            return status
+            self.setSamples(archive.magField, archive.filterField)
+            self.setMad(archive.magField, archive.filterField)
+            self.setSD(archive.magField, archive.filterField)
+            self.setMedian(archive.magField, archive.filterField)
+            self.setMean(archive.magField, archive.filterField)
+            return True
         else:
             return False
+
+    def getTable(self):
+        return self.table
+
+    def plot(self, fig, ax, archive):
+        """Method to encapsulate the plotting of data
+
+        Sets colour column to distinguish different filters used in data, then sets up plot from given
+        X and Y columns. Title is set to object name.
+
+        :param ax:
+        :type ax:
+        :param x: X-axis title
+        :type x: str
+        :param y: Y-axis title
+        :type y: str
+        :param archive: Archive object used for configuration of the plot
+        :type archive: config.Archive
+        """
+        if True:  # TODO Need to sort this out for different catalogs
+            self.addColourColumn(archive.filterField)
+            colors = self.table['colour']
+
+        # fig, ax = plt.subplots()
+
+        ax.scatter(self.table[archive.timeField], self.table[archive.magField],
+                   c=colors, marker=archive.marker)
+        ax.set_ylim(reversed(ax.set_ylim()))  # flip the y-axis
+        # plt.xlabel(x, fontsize=14)
+        # plt.ylabel(y, fontsize=14)
+        # plt.suptitle(f'{self.AO.objectName} {archive.name}', fontsize=16)
+        # plt.title(self.AO.shortDesc, fontsize=12)
+        # legend1 = ax.legend(*scatter.legend_elements(num=5, c=colors, label=archive.filterField),
+        #                     loc="upper right", title="Filters")
+        # ax.add_artist(legend1)
+
+        # plt.show()
 
     def objectOutput(self, archive):
         """Method to encapsulate data output
 
         Table of summary statistics is sent to console with a plot of data output to plot window.
         """
-        print(f"Object name: {self.objectName} - summary statistics")
+        print(f"Archive name: {archive.name}")
         print(f'{" ":30}', end='')
         for key in config.filterSelection:
             print(f'{key:^8}', end='')
@@ -425,6 +468,8 @@ class DataClass:
         filterLineOut('Median Absolute Deviation', self.mad)
         filterLineOut('Standard Deviation', self.SD)
         filterLineOut('Median', self.median, 2)
+        filterLineOut('Mean', self.mean, 2)
+        print()
         # plot graph of mag data vs. date
         # self.plot(('mjd', '$mjd$'), ('mag', '$mag$'), 'filtercode')
-        self.plot((archive.timeField, '$Time [MJD]$'), (archive.magField, '$mag$'), 'filtercode')
+        # self.plot('$Time [MJD]$', '$mag$', archive)

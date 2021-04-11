@@ -32,6 +32,7 @@ def setArchiveUsage():
     print('z - Zwicky Transient Facility')
     getch = input(f'Enter for default ({config.archAvail})')
     archives = config.archAvail if getch == '' else re.findall(f'[{config.archAvail}]', getch.lower())
+    print()
     return archives
 
 
@@ -83,6 +84,7 @@ def getObjectsCSV():
         else:
             f.close()
             print(f'Using file "{getch}".')
+            print()
             break
 
     data = ascii.read(getch, guess=False, format='csv', header_start=0, data_start=1)

@@ -71,6 +71,11 @@ class Test(TestCase):
             assert True
 
     def test_get_detections(self):
+
+        filtStr = 'gri'  # need list (1, 2, 3)
+        f = [i+1 for i, n in enumerate('grizy') if n in filtStr]
+        print(f)
+
         # ra, dec = resolve(objName)
         ra, dec = 190.8998699, 11.5346389
         radius = 1.0 / 3600.0  # radius = 1 arcsec
@@ -123,3 +128,4 @@ class Test(TestCase):
         plt.xlabel('Time [MJD]')
         plt.tight_layout()
         plt.show()
+
