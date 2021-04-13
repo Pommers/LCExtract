@@ -211,7 +211,8 @@ def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_f
     if not len(dTab):  # Check table actually has data in it (i.e. possible no lightcurve data exists)
         return config.badResponse
     else:
-        dTab['psfMag'] = -2.5 * np.log10(dTab['psfFlux']) + 8.90
+        dTab.remove_rows(dTab['psfFlux'] == 0)  # remove any rows where flux is zero
+        dTab['psfMag'] = -2.5 * np.log10(dTab['psfFlux']) + 8.90  # convert flux (in Janskys) to magnitude
 
     return status, dTab.to_pandas()
 
