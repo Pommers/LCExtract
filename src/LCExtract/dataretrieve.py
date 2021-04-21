@@ -278,7 +278,7 @@ def getLightCurveDataPTF(coordinates: CoordClass, radius,
     return status, tablePD
 
 
-def filterLineOut(statStr, statDict, lenDP=3, lenStr=30, lenVal=8, valueType=float):
+def filterLineOut(statStr, statDict, lenDP=3, lenStr=30, lenVal=8):
     """Output line of individual filter data to the console
 
     e.g. "Median Absolute Deviation      0.039   0.026   0.024  "
@@ -335,10 +335,19 @@ class AstroObjectClass:
         fig, ax = plt.subplots(nrows=1, ncols=1, sharex='all', sharey='none')
         ax.set_xlabel('Time [MJD]', fontsize=14)
         ax.set_ylabel('Mag', fontsize=14)
-        fig.suptitle(f'{self.objectName}', fontsize=16)
         ax.set_title(self.shortDesc, fontsize=12)
 
         return fig, ax
+
+    def finalisePlot(self, status, fig, ax):
+        if status:
+            ymin, ymax = ax.ylim()
+            if ymax-ymin < 1.0:
+                ymid = (ymin + ymax)/2
+                ax.set_ylim(ymid-0.5, ymid+0.5)
+            ax.set_ylim(reversed(ax.set_ylim()))  # flip the y-axis
+            fig.suptitle(f'{self.objectName}', fontsize=16)
+            plt.show()
 
 
 class AODataClass:
