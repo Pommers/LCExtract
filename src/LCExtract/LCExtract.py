@@ -19,7 +19,6 @@ Summary
 import matplotlib
 from LCExtract import config
 from matplotlib import pyplot as plt
-from matplotlib import axes
 
 from LCExtract.dataretrieve import AstroObjectClass, AODataClass
 from LCExtract.entry import getObjects, setFilterUsage, setArchiveUsage
@@ -54,6 +53,5 @@ def LCExtract():
             else:
                 print(f'No data available or retrieved from {archives[a].name}')
                 print()
-
-        AstroObjectClass.finalisePlot(plotData, fig, ax)
-
+        if plotData:
+            plt.show()
