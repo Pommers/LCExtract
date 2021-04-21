@@ -53,5 +53,5 @@ def LCExtract():
             else:
                 print(f'No data available or retrieved from {archives[a].name}')
                 print()
-        if plotData:
-            plt.show()
+
+        objectHolder.finalisePlot(plotData, fig, ax)
