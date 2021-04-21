@@ -54,4 +54,5 @@ def LCExtract():
                 print(f'No data available or retrieved from {archives[a].name}')
                 print()
         if plotData:
+            ax.set_ylim(reversed(ax.set_ylim()))  # flip the y-axis
             plt.show()
