@@ -19,6 +19,7 @@ Notes
 import collections
 import io
 import re
+import requests
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -26,6 +27,9 @@ import numpy as np
 import pandas as pd
 from astropy.io.votable import parse
 from astropy.io import ascii
+import astropy.units as u
+from astroquery.irsa import Irsa
+
 # Set up matplotlib
 from matplotlib import pyplot as plt
 # from matplotlib import artist
@@ -217,6 +221,63 @@ def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_f
     return status, dTab.to_pandas()
 
 
+def getLightCurveDataPTF(coordinates: CoordClass, radius,
+                         return_type, column_filters=None):
+    """Palomar Transient factory light curve data retrieval
+
+    IRSA provides access to the PTF collection of lightcurve data through an application program interface (API).
+    Search, restriction, and formatting parameters are specified in an HTTP URL. The output is a table in the
+    requested format containing lightcurve data satisfying the search constraints.
+
+    Ref. https://irsa.ipac.caltech.edu/applications/Gator/GatorAid/irsa/catsearch.html
+
+    :param coordinates: Coordinates of object expressed CoordClass notation in J2000 RA Dec (Decimal) format.
+    :type coordinates: CoordClass
+    :param radius: Radius of cone search ** in degrees ** for passing to PTF
+    :type radius: float
+    :param return_type: For selection of different return types, e.g. "VOTABLE" (Default), "HTML", "CSV"
+    :type return_type: str
+    :param column_filters: Not used currently
+    :returns:
+        (boolean) Valid data return
+        (DataFrame) Data payload
+    :rtype: tuple
+
+    """
+
+    filterStr = getFilterStr(config.ptf.filters)  # limit filters (requested) to PTF subset
+
+    status = True
+
+    rt = ('HTML', 'ASCII', 'SVC', 'VOTABLE', 'XML') # not used currently
+    if column_filters is None:
+        column_filters = {}
+
+    print('Requesting data from Palomar Transient Factory. Please wait ... ', end='')
+    with Spinner():
+        try:
+            votable = Irsa.query_region(f"{coordinates.getRA()}, {coordinates.getDEC()}", catalog="ptf_lightcurves",
+                                        spatial="Cone", radius=radius * u.deg, verbose=False)
+            print(f'\r{" ":65}\r ', end='')
+        except HTTPError as err:
+            if err.code == 400:
+                print('Sorry. Could not complete request.')
+            else:
+                raise
+
+    if not len(votable):  # Check table actually has data in it (i.e. possible no lightcurve data exists)
+        return config.badResponse
+
+    tablePD = votable.to_pandas()
+
+    # Filter constraint - fid=1 (g filter) or fid=2 (R filter)
+    fi = pd.Series({1: "g", 2: "R"})  # map filter ID from ZTF code (used as key in output)
+    tablePD['filterID'] = tablePD['fid'].map(fi)
+    tablePD = tablePD.loc[tablePD['filterID'].isin(list(config.filterSelection))]
+
+    return status, tablePD
+
+
 def filterLineOut(statStr, statDict, lenDP=3, lenStr=30, lenVal=8, valueType=float):
     """Output line of individual filter data to the console
 
@@ -266,15 +327,12 @@ class AstroObjectClass:
         :type dec: float
         """
 
-        # self.data = np
-        # self.radius = 1 / 3600  # 1 arcseconds
-        # self.filters = 'g,r,i,z'
         self.objectName = objectName
         self.shortDesc = subtitle
         self.pos = CoordClass(ra, dec)
 
-    def preparePlot(self):
-        fig, ax = plt.subplots(nrows=1, ncols=1, sharex='all', sharey='all')
+    def preparePlot(self, plotRows):
+        fig, ax = plt.subplots(nrows=1, ncols=1, sharex='all', sharey='none')
         ax.set_xlabel('Time [MJD]', fontsize=14)
         ax.set_ylabel('Mag', fontsize=14)
         fig.suptitle(f'{self.objectName}', fontsize=16)
@@ -283,7 +341,7 @@ class AstroObjectClass:
         return fig, ax
 
 
-class AODataClass():
+class AODataClass:
     """Class for storing and manipulating the data for an astronomical object"""
 
     def __init__(self, AO: AstroObjectClass):
@@ -318,8 +376,10 @@ class AODataClass():
 
         if catalog.name == 'ZTF':
             response = getLightCurveDataZTF(self.AO.pos, radiusDeg, return_type)
-        elif catalog.name == 'PanSTARRS':
+        elif catalog.name == 'Pan-STARRS':
             response = getLightCurveDataPanSTARRS(self.AO.pos, radiusDeg, return_type='CSV')
+        elif catalog.name == 'PTF':
+            response = getLightCurveDataPTF(self.AO.pos, radiusDeg, return_type)
         else:
             return False
 
@@ -394,7 +454,7 @@ class AODataClass():
         :param series: Column name to use for colour selection
         :type series: str
         """
-        c = pd.Series({"g": "green", "r": "red", "i": "indigo", "z": "blue", "y": "black"})
+        c = pd.Series({"g": "green", "r": "red", "i": "indigo", "z": "blue", "y": "black", "R": "orange"})
         self.table['colour'] = self.table[series].map(c)
 
     def getData(self, archive):
