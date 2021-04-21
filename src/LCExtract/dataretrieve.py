@@ -341,7 +341,7 @@ class AstroObjectClass:
 
     def finalisePlot(self, status, fig, ax):
         if status:
-            ymin, ymax = ax.ylim()
+            ymin, ymax = ax.get_ylim()
             if ymax-ymin < 1.0:
                 ymid = (ymin + ymax)/2
                 ax.set_ylim(ymid-0.5, ymid+0.5)
@@ -512,7 +512,7 @@ class AODataClass:
 
         ax.scatter(self.table[archive.timeField], self.table[archive.magField],
                    c=colors, marker=archive.marker)
-        ax.set_ylim(reversed(ax.set_ylim()))  # flip the y-axis
+        # ax.set_ylim(reversed(ax.set_ylim()))  # flip the y-axis
         # plt.xlabel(x, fontsize=14)
         # plt.ylabel(y, fontsize=14)
         # plt.suptitle(f'{self.AO.objectName} {archive.name}', fontsize=16)
