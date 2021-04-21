@@ -28,8 +28,8 @@ from LCExtract import config
 
 def setArchiveUsage():
     print('Please specify which archives to query.')
-    print('p - Pan-STARRS')
-    print('z - Zwicky Transient Facility')
+    for a in config.archives:
+        print(f'{config.archives[a].code} - {config.archives[a].name}')
     getch = input(f'Enter for default ({config.archAvail})')
     archives = config.archAvail if getch == '' else re.findall(f'[{config.archAvail}]', getch.lower())
     print()
@@ -39,7 +39,7 @@ def setArchiveUsage():
 def setFilterUsage():
     # uses global filterSelection
 
-    getch = input('Please select filters to display (e.g. grizy)....: ')
+    getch = input(f'Please select filters to display (deafult is {config.filterSelection})....: ')
     # if no entry set use default for session
     if getch != '':
         config.filterSelection = getch
