@@ -17,6 +17,7 @@ Summary
 """
 # Self-authored package modules for inclusion
 import matplotlib
+from LCExtract import config
 from matplotlib import pyplot as plt
 
 from LCExtract.dataretrieve import AstroObjectClass, AODataClass
@@ -41,7 +42,7 @@ def LCExtract():
         print(f"Object name: {objectHolder.objectName} - summary statistics")
 
         plotData = False
-        fig, ax = objectHolder.preparePlot()
+        fig, ax = objectHolder.preparePlot(len(config.filterSelection))
         for a in archiveList:
             dataHolder = AODataClass(objectHolder)
             if dataHolder.getData(archives[a]):
