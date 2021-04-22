@@ -8,7 +8,6 @@ summary
 Configuration and global data for package
 """
 import collections
-from LCExtract.utilities import Namespace
 
 # archAvail = 'pz'  # string for archives available to query
 

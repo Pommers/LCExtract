@@ -9,7 +9,6 @@ Currently a placeholder for development of any coordinate manipulation routines 
 in extension to the Astropy coordinate module (which in fairness seems quite rich!)
 """
 from astropy.coordinates import SkyCoord
-from astropy import units
 
 
 def to_string(value, precision):

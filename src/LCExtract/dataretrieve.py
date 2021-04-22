@@ -16,29 +16,26 @@ Notes
 -----
 
 """
-import collections
 import io
 import re
-import requests
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
+import astropy.units as u
 import numpy as np
 import pandas as pd
-from astropy.io.votable import parse
 from astropy.io import ascii
-import astropy.units as u
+from astropy.io.votable import parse
 from astroquery.irsa import Irsa
-
 # Set up matplotlib
 from matplotlib import pyplot as plt
 # from matplotlib import artist
 from scipy import stats
 
 from LCExtract import config
+from LCExtract.PanSTARRS import ps1cone, getDetections
 from LCExtract.coord import CoordClass, to_string
 from LCExtract.utilities import Spinner
-from LCExtract.PanSTARRS import ps1cone, getDetections
 
 """filter dict and list for reference in output iteration"""
 ZTFfilters = {"zg": 0, "zr": 1, "zi": 2}

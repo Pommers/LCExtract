@@ -16,13 +16,10 @@ Summary
     summarising and plotting output
 """
 # Self-authored package modules for inclusion
-import matplotlib
 from LCExtract import config
-from matplotlib import pyplot as plt
-
+from LCExtract.config import archives
 from LCExtract.dataretrieve import AstroObjectClass, AODataClass
 from LCExtract.entry import getObjects, setFilterUsage, setArchiveUsage
-from LCExtract.config import archives
 
 
 def startup():
