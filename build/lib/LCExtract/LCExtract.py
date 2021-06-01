@@ -16,8 +16,10 @@ Summary
     summarising and plotting output
 """
 # Self-authored package modules for inclusion
-from LCExtract.dataretrieve import DataClass
-from LCExtract.entry import getObjects, setFilterUsage
+from LCExtract import config
+from LCExtract.config import archives
+from LCExtract.dataretrieve import AstroObjectClass, AODataClass
+from LCExtract.entry import getObjects, setFilterUsage, setArchiveUsage
 
 
 def startup():
@@ -28,14 +30,25 @@ def startup():
 
 
 def LCExtract():
-
     startup()
     objectsList = getObjects()
+    archiveList = setArchiveUsage()
     setFilterUsage()
     for i in objectsList:
-        objectHolder = DataClass(i['Name'], i['RA'], i['DEC'], i['Description'])
-        if objectHolder.getData():
-            objectHolder.objectOutput()
-        else:
-            print(f'Object name: {i["Name"]} - No data available or retrieved')
-            print()
+        objectHolder = AstroObjectClass(i['Name'], i['RA'], i['DEC'], i['Description'])
+        print(f"Object name: {objectHolder.objectName} - summary statistics")
+
+        plotData = False
+        fig, ax = objectHolder.preparePlot(len(config.filterSelection))
+        for a in archiveList:
+            dataHolder = AODataClass(objectHolder)
+            if dataHolder.getData(archives[a]):
+                plotData = True
+                dataHolder.objectOutput(archives[a])
+                dataHolder.getTable()
+                dataHolder.plot(fig, ax, archives[a])
+            else:
+                print(f'No data available or retrieved from {archives[a].name}')
+                print()
+
+        objectHolder.finalisePlot(plotData, fig, ax)

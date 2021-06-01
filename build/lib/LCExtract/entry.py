@@ -26,12 +26,23 @@ from astropy.table import Table
 from LCExtract import config
 
 
+def setArchiveUsage():
+    print('Please specify which archives to query.')
+    for a in config.archives:
+        print(f'{config.archives[a].code} - {config.archives[a].name}')
+    getch = input(f'Enter for default ({config.archAvail})')
+    archives = config.archAvail if getch == '' else re.findall(f'[{config.archAvail}]', getch.lower())
+    print()
+    return archives
+
+
 def setFilterUsage():
     # uses global filterSelection
 
-    getch = input('Please select filters to display (e.g. griz)....: ')
-    # if no entry set default to griz, or check for valid filter combinations
-    config.filterSelection = getch
+    getch = input(f'Please select filters to display (deafult is {config.filterSelection})....: ')
+    # if no entry set use default for session
+    if getch != '':
+        config.filterSelection = getch
     print()
 
 
@@ -73,6 +84,7 @@ def getObjectsCSV():
         else:
             f.close()
             print(f'Using file "{getch}".')
+            print()
             break
 
     data = ascii.read(getch, guess=False, format='csv', header_start=0, data_start=1)

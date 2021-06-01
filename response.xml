@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VOTABLE version="1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:stc="http://www.ivoa.net/xml/STC/v1.30" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/STC/v1.30 http://www.ivoa.net/xml/STC/v1.30">
+  <RESOURCE type="meta" utype="adhoc:service">
+    <DESCRIPTION>Link to ZTF light curve for ztf_dr5 collection</DESCRIPTION>
+    <GROUP name="inputParams">
+      <PARAM name="ID" datatype="char" arraysize="*" ref="col_1" value="">
+        <DESCRIPTION>Identifier of a ZTF object.</DESCRIPTION>
+      </PARAM>
+      <PARAM name="bad_catflags_mask" datatype="int" value="0">
+        <DESCRIPTION>Bitmask used to exclude lightcurve points with at least one of the indicated catflag bits set. Default is 0.</DESCRIPTION>
+      </PARAM>
+      <PARAM name="time" datatype="char" arraysize="*" value="">
+        <DESCRIPTION>Date-time range for which lightcurve data is to be retrieved, unlimited by default. Space-separated range endpoint(s) are interpreted as Modified Julian Dates (MJD).</DESCRIPTION>
+      </PARAM>
+    </GROUP>
+    <PARAM name="accessURL" datatype="char" arraysize="*" value="https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves?collection=ztf_dr5"/>
+  </RESOURCE>
+  <RESOURCE type="results">
+    <INFO name="QUERY_STATUS" value="OK"/>
+    <TABLE>
+      <FIELD name="cntr" datatype="long" ID="col_0" ucd="meta.record;meta.main">
+        <DESCRIPTION>Unique row identifier</DESCRIPTION>
+      </FIELD>
+      <FIELD name="oid" datatype="long" ID="col_1" ucd="meta.id;src;meta.main">
+        <DESCRIPTION>Unique object identifier</DESCRIPTION>
+      </FIELD>
+      <FIELD name="ra" datatype="double" ID="col_2" precision="7" ucd="pos.eq.ra;meta.main" unit="deg" width="11">
+        <DESCRIPTION>Object Right Ascension</DESCRIPTION>
+      </FIELD>
+      <FIELD name="dec" datatype="double" ID="col_3" precision="7" ucd="pos.eq.dec;meta.main" unit="deg" width="11">
+        <DESCRIPTION>Object Declination</DESCRIPTION>
+      </FIELD>
+      <FIELD name="htm20" datatype="long" ID="col_4" ucd="pos.HTM">
+        <DESCRIPTION>HTM20 index for object</DESCRIPTION>
+      </FIELD>
+      <FIELD name="field" datatype="int" ID="col_5" ucd="meta.id;obs.field">
+        <DESCRIPTION>Field identifier</DESCRIPTION>
+      </FIELD>
+      <FIELD name="ccdid" datatype="short" ID="col_6" ucd="meta.id;instr.det">
+        <DESCRIPTION>CCD identifier (1-16)</DESCRIPTION>
+      </FIELD>
+      <FIELD name="qid" datatype="short" ID="col_7" ucd="meta.id">
+        <DESCRIPTION>Quadrant (1-4)</DESCRIPTION>
+      </FIELD>
+      <FIELD name="fid" datatype="short" ID="col_8" ucd="meta.id;instr.filter">
+        <DESCRIPTION>Filter identifier (1 = zg; 2 = zr; 3 = zi)</DESCRIPTION>
+      </FIELD>
+      <FIELD name="filtercode" datatype="char" arraysize="*" ID="col_9" ucd="instr.bandpass">
+        <DESCRIPTION>Filter code (zg, zr, zi)</DESCRIPTION>
+      </FIELD>
+      <FIELD name="x" datatype="double" ID="col_10" precision="16" ucd="pos.cartesian.x" width="24">
+        <DESCRIPTION>Unit sphere position x-coordinate</DESCRIPTION>
+      </FIELD>
+      <FIELD name="y" datatype="double" ID="col_11" precision="16" ucd="pos.cartesian.y" width="24">
+        <DESCRIPTION>Unit sphere position y-coordinate</DESCRIPTION>
+      </FIELD>
+      <FIELD name="z" datatype="double" ID="col_12" precision="16" ucd="pos.cartesian.z" width="24">
+        <DESCRIPTION>Unit sphere position z-coordinate</DESCRIPTION>
+      </FIELD>
+      <FIELD name="ngoodobs" datatype="int" ID="col_13" ucd="meta.number">
+        <DESCRIPTION>Number of epochal detections that were not flagged or masked due to bad pixels</DESCRIPTION>
+      </FIELD>
+      <FIELD name="ngoodobsrel" datatype="int" ID="col_14" ucd="meta.number">
+        <DESCRIPTION>Number of epochal detections in this release not associated with bad pixels</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nobs" datatype="int" ID="col_15" ucd="meta.number">
+        <DESCRIPTION>Total number of epochal detections (observation epochs) in the lightcurve</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nobsrel" datatype="int" ID="col_16" ucd="meta.number">
+        <DESCRIPTION>Total number of epochal detections that are in this release</DESCRIPTION>
+      </FIELD>
+      <FIELD name="refchi" datatype="float" ID="col_17" precision="6" width="14">
+        <DESCRIPTION>Ratio of observed to expected pixel-to-pixel scatter of the image profile</DESCRIPTION>
+      </FIELD>
+      <FIELD name="refmag" datatype="float" ID="col_18" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>Object magnitude from reference image if detected (not transient)</DESCRIPTION>
+      </FIELD>
+      <FIELD name="refmagerr" datatype="float" ID="col_19" precision="6" ucd="stat.error;phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>Error in refMag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="refsharp" datatype="float" ID="col_20" precision="6" width="14">
+        <DESCRIPTION>Measure of the difference between observed and expected angular sizes</DESCRIPTION>
+      </FIELD>
+      <FIELD name="refsnr" datatype="float" ID="col_21" precision="6" ucd="stat.snr" width="14">
+        <DESCRIPTION>From the reference image catalog, signal-to-noise ratio</DESCRIPTION>
+      </FIELD>
+      <FIELD name="astrometricrms" datatype="double" ID="col_22" precision="6" ucd="stat.rms" unit="deg" width="14">
+        <DESCRIPTION>Root Mean Squared deviation in epochal positions relative to object RA,Dec</DESCRIPTION>
+      </FIELD>
+      <FIELD name="chisq" datatype="float" ID="col_23" precision="6" ucd="stat.fit.chi2" width="14">
+        <DESCRIPTION>Chi-square metric using nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="con" datatype="float" ID="col_24" precision="6" ucd="meta.number;arith.ratio" width="14">
+        <DESCRIPTION>Fraction of nobs where three consecutive epochs are &gt; 2x RMS from median mag + 1</DESCRIPTION>
+      </FIELD>
+      <FIELD name="lineartrend" datatype="float" ID="col_25" precision="6" ucd="stat.fit.parameter" unit="mag/d" width="14">
+        <DESCRIPTION>Slope from linear fit to nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="magrms" datatype="float" ID="col_26" precision="6" ucd="stat.rms" unit="mag" width="14">
+        <DESCRIPTION>Root Mean Squared deviation over nobs magnitudes</DESCRIPTION>
+      </FIELD>
+      <FIELD name="maxmag" datatype="float" ID="col_27" precision="6" ucd="phot.mag;em.opt;stat.max" unit="mag" width="14">
+        <DESCRIPTION>Maximum magnitude over nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="maxslope" datatype="float" ID="col_28" precision="6" ucd="stat.value;stat.max" unit="mag/d" width="14">
+        <DESCRIPTION>Maximum pairwise slope over all consecutive nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="meanmag" datatype="float" ID="col_29" precision="6" ucd="phot.mag;em.opt;stat.mean" unit="mag" width="14">
+        <DESCRIPTION>Mean magnitude over nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="medianabsdev" datatype="float" ID="col_30" precision="6" ucd="stat.value;stat.median" unit="mag" width="14">
+        <DESCRIPTION>Median absolute deviation in magnitudes over nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="medianmag" datatype="float" ID="col_31" precision="6" ucd="phot.mag;em.opt;stat.median" unit="mag" width="14">
+        <DESCRIPTION>Median magnitude over nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="medmagerr" datatype="float" ID="col_32" precision="6" ucd="stat.error;phot.mag;em.opt;stat.median" unit="mag" width="14">
+        <DESCRIPTION>Median of magerr values over nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="minmag" datatype="float" ID="col_33" precision="6" ucd="phot.mag;em.opt;stat.min" unit="mag" width="14">
+        <DESCRIPTION>Minimum magnitude over nobs detections</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nabovemeanbystd_1" datatype="int" ID="col_34" ucd="meta.number">
+        <DESCRIPTION>Number of lightcurve points that are 1 standard deviation above the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nabovemeanbystd_3" datatype="int" ID="col_35" ucd="meta.number">
+        <DESCRIPTION>Number of lightcurve points that are 3 standard deviations above the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nabovemeanbystd_5" datatype="int" ID="col_36" ucd="meta.number">
+        <DESCRIPTION>Number of lightcurve points that are 5 standard deviations above the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nbelowmeanbystd_1" datatype="int" ID="col_37" ucd="meta.number">
+        <DESCRIPTION>Number of lightcurve points that are 1 standard deviation below the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nbelowmeanbystd_3" datatype="int" ID="col_38" ucd="meta.number">
+        <DESCRIPTION>Number of lightcurve points that are 3 standard deviations below the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nbelowmeanbystd_5" datatype="int" ID="col_39" ucd="meta.number">
+        <DESCRIPTION>Number of lightcurve points that are 5 standard deviations below the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecabovemeanbystd_1" datatype="int" ID="col_40" ucd="meta.number">
+        <DESCRIPTION>Number of consecutive points that are 1 standard deviation above the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecabovemeanbystd_3" datatype="int" ID="col_41" ucd="meta.number">
+        <DESCRIPTION>Number of consecutive points that are 3 standard deviations above the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecabovemeanbystd_5" datatype="int" ID="col_42" ucd="meta.number">
+        <DESCRIPTION>Number of consecutive points that are 5 standard deviations above the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecbelowmeanbystd_1" datatype="int" ID="col_43" ucd="meta.number">
+        <DESCRIPTION>Number of consecutive points that are 1 standard deviation below the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecbelowmeanbystd_3" datatype="int" ID="col_44" ucd="meta.number">
+        <DESCRIPTION>Number of consecutive points that are 3 standard deviations below the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecbelowmeanbystd_5" datatype="int" ID="col_45" ucd="meta.number">
+        <DESCRIPTION>Number of consecutive points that are 5 standard deviations below the mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecfrommeanbystd_1" datatype="int" ID="col_46" ucd="meta.number">
+        <DESCRIPTION>Number of consec. points that are 1 standard deviation above or below mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecfrommeanbystd_3" datatype="int" ID="col_47" ucd="meta.number">
+        <DESCRIPTION>Number of consec. points that are 3 standard deviations above or below mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nconsecfrommeanbystd_5" datatype="int" ID="col_48" ucd="meta.number">
+        <DESCRIPTION>Number of consec. points that are 5 standard deviations above or below mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="nmedianbufferrange" datatype="int" ID="col_49" ucd="meta.number">
+        <DESCRIPTION>Number of points more than 20% of the LC amplitude from the weighted mean mag</DESCRIPTION>
+      </FIELD>
+      <FIELD name="npairposslope" datatype="int" ID="col_50" ucd="meta.number">
+        <DESCRIPTION>Number of positive slopes between consecutive pairwise lightcurve points</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_05" datatype="float" ID="col_51" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>5th percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_10" datatype="float" ID="col_52" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>10th percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_175" datatype="float" ID="col_53" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>17.5 percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_25" datatype="float" ID="col_54" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>25th percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_325" datatype="float" ID="col_55" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>32.5 percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_40" datatype="float" ID="col_56" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>40th percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_60" datatype="float" ID="col_57" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>60th percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_675" datatype="float" ID="col_58" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>67.5 percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_75" datatype="float" ID="col_59" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>75th percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_825" datatype="float" ID="col_60" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>82.5 percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_90" datatype="float" ID="col_61" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>90th percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="percentiles_95" datatype="float" ID="col_62" precision="6" ucd="phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>95th percentile in magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="skewness" datatype="float" ID="col_63" precision="6" ucd="stat.asymmetry;src.var" width="14">
+        <DESCRIPTION>Skew (third moment) in lightcurve magnitudes over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="smallkurtosis" datatype="float" ID="col_64" precision="6" ucd="stat.parameter;src.var" width="14">
+        <DESCRIPTION>Small sample Kurtosis (fourth moment) in lightcurve magnitudes over nobs</DESCRIPTION>
+      </FIELD>
+      <FIELD name="stetsonj" datatype="float" ID="col_65" precision="6" ucd="stat.parameter;src.var" width="14">
+        <DESCRIPTION>Stetson-J statistic for this filter only; measures degree of autocorrelation</DESCRIPTION>
+      </FIELD>
+      <FIELD name="stetsonk" datatype="float" ID="col_66" precision="6" ucd="stat.parameter;src.var" width="14">
+        <DESCRIPTION>Stetson-K statistic; proportional to the kurtosis of the magnitude distribution</DESCRIPTION>
+      </FIELD>
+      <FIELD name="vonneumannratio" datatype="float" ID="col_67" precision="6" ucd="stat.parameter;src.var" width="14">
+        <DESCRIPTION>Von Neumann Ratio statistic over nobs; measure of epoch-to-epoch variability</DESCRIPTION>
+      </FIELD>
+      <FIELD name="weightedmagrms" datatype="float" ID="col_68" precision="6" ucd="stat.rms;phot.mag;em.opt" unit="mag" width="14">
+        <DESCRIPTION>Root Mean Square magnitude over nobs using inverse-variance weighting</DESCRIPTION>
+      </FIELD>
+      <FIELD name="weightedmeanmag" datatype="float" ID="col_69" precision="6" ucd="phot.mag;em.opt;stat.mean" unit="mag" width="14">
+        <DESCRIPTION>Inverse-variance weighted mean magnitude over nobs</DESCRIPTION>
+      </FIELD>
+      <DATA>
+        <TABLEDATA>
+          <TR>
+            <TD>423108300000655</TD>
+            <TD>423108300000655</TD>
+            <TD>188.8872523</TD>
+            <TD>-3.7330934999999998</TD>
+            <TD>11054803534730</TD>
+            <TD>423</TD>
+            <TD>8</TD>
+            <TD>3</TD>
+            <TD>1</TD>
+            <TD>zg</TD>
+            <TD>-0.9858979153243288</TD>
+            <TD>-0.15416277052962601</TD>
+            <TD>-0.065108684073421089</TD>
+            <TD>75</TD>
+            <TD>75</TD>
+            <TD>86</TD>
+            <TD>86</TD>
+            <TD>0.437000006</TD>
+            <TD>17.3180008</TD>
+            <TD>0.0120000001</TD>
+            <TD>-0.0130000003</TD>
+            <TD>88.2699966</TD>
+            <TD>4.0699646521996982e-07</TD>
+            <TD>0.841260016</TD>
+            <TD>1</TD>
+            <TD>3.9441893e-06</TD>
+            <TD>0.0231642146</TD>
+            <TD>17.3664074</TD>
+            <TD>0.0121937655</TD>
+            <TD>17.3256989</TD>
+            <TD>0.0122528076</TD>
+            <TD>17.3274765</TD>
+            <TD>0.0215938147</TD>
+            <TD>17.2374401</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>0</TD>
+            <TD>14</TD>
+            <TD>17.3106575</TD>
+            <TD>17.2957211</TD>
+            <TD>17.2905655</TD>
+            <TD>17.28512</TD>
+            <TD>17.284502</TD>
+            <TD>17.2810287</TD>
+            <TD>17.2677746</TD>
+            <TD>17.2648296</TD>
+            <TD>17.2624226</TD>
+            <TD>17.2601509</TD>
+            <TD>17.2582588</TD>
+            <TD>17.257164</TD>
+            <TD>-0.891183555</TD>
+            <TD>nan</TD>
+            <TD>nan</TD>
+            <TD>nan</TD>
+            <TD>1.99352551</TD>
+            <TD>nan</TD>
+            <TD>nan</TD>
+          </TR>
+        </TABLEDATA>
+      </DATA>
+    </TABLE>
+  </RESOURCE>
+</VOTABLE>

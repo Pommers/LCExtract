@@ -1,7 +1,8 @@
 from unittest import TestCase
 
 from LCExtract import config
-from LCExtract.dataretrieve import getLightCurveDataPTF, AstroObjectClass
+from LCExtract.dataretrieve import AstroObjectClass
+from LCExtract.ptf import getLightCurveDataPTF
 
 
 class Test(TestCase):

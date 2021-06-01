@@ -26,7 +26,7 @@ from astropy.table import Table
 from LCExtract import config
 
 
-def setArchiveUsage():
+def setArchiveUsage() -> config.Archive:
     print('Please specify which archives to query.')
     for a in config.archives:
         print(f'{config.archives[a].code} - {config.archives[a].name}')
@@ -39,7 +39,7 @@ def setArchiveUsage():
 def setFilterUsage():
     # uses global filterSelection
 
-    getch = input(f'Please select filters to display (deafult is {config.filterSelection})....: ')
+    getch = input(f'Please select filters to display (default is {config.filterSelection})....: ')
     # if no entry set use default for session
     if getch != '':
         config.filterSelection = getch
@@ -47,11 +47,11 @@ def setFilterUsage():
 
 
 def setEntryType():
-    print('Script will accept file or manual input. Default is manual.')
+    print('Script will accept file or manual input. Default is file.')
     while True:
         getch = input(f'Please select file (f) or manual object (m) entry..........: ')
         if getch == '':
-            getch = 'm'
+            getch = 'f'
         if getch[0].lower() in ('f', 'm'):
             break
     print()

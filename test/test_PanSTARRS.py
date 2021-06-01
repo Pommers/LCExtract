@@ -72,7 +72,7 @@ class Test(TestCase):
 
     def test_get_detections(self):
 
-        filtStr = 'gri'  # need list (1, 2, 3)
+        filtStr = 'gri'  # need df (1, 2, 3)
         f = [i+1 for i, n in enumerate('grizy') if n in filtStr]
         print(f)
 

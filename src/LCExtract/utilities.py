@@ -1,8 +1,11 @@
 import itertools
+import math
 import sys
 import threading
 import time
 from numbers import Number
+
+from LCExtract import config
 
 
 class Namespace(object):
@@ -39,3 +42,25 @@ class Spinner:
         time.sleep(self.delay)
         if exception is not None:
             return False
+
+
+def threeSigma(archive, filterID, mag) -> float:
+    """Calculate 3 sigma confidence level from coefficients
+
+    previously calculated coefficients used to provide a 3 sigma (y) value for a mag (x) value passed
+
+    :param archive: archive to calculate
+    :type archive:
+    :param filterID: filter to calculate
+    :type filterID: str
+    :param mag: mag used as 'x' value
+    :type mag: float
+    :return: 3 sigma value
+    :rtype: float
+    """
+    y1 = 0
+    if filterID == 'g':
+        c = config.medSD_c
+        for o in range(len(c)):
+            y1 += c[o] * mag ** (len(c) - o - 1)
+    return 3 * y1

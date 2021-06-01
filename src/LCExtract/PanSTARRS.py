@@ -13,19 +13,21 @@ _____
 
 
 """
+import json
+import sys
+from urllib.error import HTTPError
+
+import numpy as np
+import requests
 # imports
 # %matplotlib inline - This is needed to insert plots inline in a Jupyter notebook, but not here.
 from astropy.io import ascii
 from astropy.table import Table
 
-import sys
-import re
-import numpy as np
-import pylab
-import json
-import requests
-
 from LCExtract import config
+from LCExtract.coord import CoordClass
+from LCExtract.filter import getFilterStr
+from LCExtract.utilities import Spinner
 
 try:  # Python 3.x
     from urllib.parse import quote as urlencode
@@ -56,7 +58,7 @@ def ps1cone(ra, dec, radius, table="mean", release="dr1", format="csv", columns=
     :type release: str
     :param format: csv, votable, json
     :type format: str
-    :param columns: list of column names to include (None means use defaults)
+    :param columns: df of column names to include (None means use defaults)
     :type columns: list
     :param baseurl: base URL for the request
     :type baseurl: str
@@ -84,7 +86,7 @@ def ps1search(table="mean", release="dr1", format="csv", columns=None, verbose=F
     :type release: str
     :param format: csv, votable, json
     :type format: str
-    :param columns: list of column names to include (None means use defaults)
+    :param columns: df of column names to include (None means use defaults)
     :type columns: list
     :param verbose: print info about request
     :type verbose: bool
@@ -115,7 +117,7 @@ def ps1search(table="mean", release="dr1", format="csv", columns=None, verbose=F
                 badcols.append(col)
         if badcols:
             raise ValueError('Some columns not found in table: {}'.format(', '.join(badcols)))
-        # two different ways to specify a list of column values in the API
+        # two different ways to specify a df of column values in the API
         # data['columns'] = columns
         data['columns'] = '[{}]'.format(','.join(columns))
 
@@ -281,3 +283,89 @@ def getDetections(tab):
     dTab = addFilter(ascii.read(dResults))
     dTab.sort('obsTime')
     return dTab
+
+
+def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_filters=None):
+    """Pan-STARRS light curve data retrieval
+
+    The Pan-STARRs catalog API allows the ability to search the Pan-STARRS catalogs. For additional information
+    on the catalogs please visit the Pan-STARRS Data Archive Home Page.
+
+    Ref. https://outerspace.stsci.edu/display/PANSTARRS/Pan-STARRS1+data+archive+home+page
+
+
+    :param coords: Coordinates of object expressed CoordClass notation in J2000 RA Dec (Decimal) format.
+    :type coords: CoordClass
+    :param radius: Radius of cone search ** in degrees ** for passing to Pan-STARRS
+    :type radius: float
+    :param return_type: For selection of different return types, e.g. "VOTABLE" (Default), "HTML", "CSV"
+    :type return_type: str
+    :param column_filters: Not used currently
+    :returns:
+        (boolean) Valid data return
+        (DataFrame) Data payload
+    :rtype: tuple
+
+    """
+
+    constraints = {'nDetections.gt': 1}
+    # set columns to return by default
+    # strip blanks and weed out blank and commented-out values
+    columns = """objID,raMean,decMean,nDetections,ng,nr,ni,nz,ny,
+        gMeanPSFMag,rMeanPSFMag,iMeanPSFMag,zMeanPSFMag,yMeanPSFMag""".split(',')
+    columns = [x.strip() for x in columns]
+    columns = [x for x in columns if x and not x.startswith('#')]
+
+    # limit filters (requested) to PanSTARRS subset
+    filterStr = getFilterStr('grizy')
+
+    status = True
+    if column_filters is None:
+        column_filters = {}
+
+    print('Searching for object in Pan-STARRS archive (MAST). Please wait ... ', end='')
+    with Spinner():
+        try:
+            # perform a cone search about coordinates to get detections
+            results = ps1cone(coords.getRA(), coords.getDEC(), radius, release='dr2', columns=columns, **constraints)
+            print(f'\r{" ":68}\r ', end='')
+        except HTTPError as err:
+            if err.code == 400:
+                print('Sorry. Could not complete request (400).')
+            elif err.code == 502:
+                print('Sorry. Unable to contact Pan-STARRS server at this time (502).')
+            else:
+                raise
+
+    if not results:
+        return config.badResponse
+
+    # convert to table
+    tab = ascii.read(results)
+
+    # improve the format
+    for filter in 'grizy':
+        col = filter + 'MeanPSFMag'
+        tab[col].format = ".4f"  # (only for printing?)
+        tab[col][tab[col] == -999.0] = np.nan  # set to nan if -999 before analysis
+
+    print('Searching for object detections. Please wait ... ', end='')
+    with Spinner():
+        try:
+            # get individual detections for first object in the df
+            dTab = getDetections(tab)
+            print(f'\r{" ":50}\r ', end='')
+
+        except HTTPError as err:
+            if err.code == 400:
+                print('Sorry. Could not complete request.')
+            else:
+                raise
+
+    if not len(dTab):  # Check table actually has data in it (i.e. possible no lightcurve data exists)
+        return config.badResponse
+    else:
+        dTab.remove_rows(dTab['psfFlux'] == 0)  # remove any rows where flux is zero
+        dTab['psfMag'] = -2.5 * np.log10(dTab['psfFlux']) + 8.90  # convert flux (in Janskys) to magnitude
+
+    return status, dTab.to_pandas()

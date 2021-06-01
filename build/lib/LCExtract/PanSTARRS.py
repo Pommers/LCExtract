@@ -13,17 +13,15 @@ _____
 
 
 """
+import json
+import sys
+
+import numpy as np
+import requests
 # imports
 # %matplotlib inline - This is needed to insert plots inline in a Jupyter notebook, but not here.
 from astropy.io import ascii
 from astropy.table import Table
-
-import sys
-import re
-import numpy as np
-import pylab
-import json
-import requests
 
 from LCExtract import config
 

@@ -10,297 +10,35 @@ Implements specific methods for download of information from archives
 
 1. Zwicky Transient Facility
 2. Pan-STARRS
-
+3. Palomar Transient Factory
 
 Notes
 -----
 
 """
-import io
+import os
 import re
-from urllib.error import HTTPError
-from urllib.request import urlopen
 
-import astropy.units as u
 import numpy as np
 import pandas as pd
-from astropy.io import ascii
-from astropy.io.votable import parse
-from astroquery.irsa import Irsa
 # Set up matplotlib
 from matplotlib import pyplot as plt
 # from matplotlib import artist
 from scipy import stats
 
 from LCExtract import config
-from LCExtract.PanSTARRS import ps1cone, getDetections
-from LCExtract.coord import CoordClass, to_string
-from LCExtract.utilities import Spinner
+from LCExtract.coord import CoordClass
+from LCExtract.filter import filterLineOut
+from LCExtract.utilities import threeSigma
+from LCExtract.ztf import getLightCurveDataZTF, getOIDZTFinfo, OIDListFile
+from LCExtract.ptf import getLightCurveDataPTF
+from LCExtract.PanSTARRS import getLightCurveDataPanSTARRS
 
-"""filter dict and list for reference in output iteration"""
-ZTFfilters = {"zg": 0, "zr": 1, "zi": 2}
-filterKey = list(ZTFfilters)
-
-
-# TODO Need to implement a way to consolidate filters from different sources
+"""filter dict and df for reference in output iteration"""
 
 
-def getFilterStr(avail: str, delim=','):
-    """Return a subset of filters requested as appropriate to archive
-
-    :param avail: available filters for archive facility (e.g. 'gri')
-    :type avail: str
-    :param delim: response delimiter (default ',')
-    :type delim: str
-    :return: filter subset based on request (e.g. 'g,r')
-    :rtype: str
-    """
-    temp = avail if not config.filterSelection else re.findall('[' + config.filterSelection + ']', avail)
-    return delim.join(temp)
-
-
-def getLightCurveDataZTF(coordinates: CoordClass, radius,
-                         return_type, column_filters=None):
-    """Zwicky Transient facility light curve data retrieval
-
-    IRSA provides access to the ZTF collection of lightcurve data through an application program interface (API).
-    Search, restriction, and formatting parameters are specified in an HTTP URL. The output is a table in the
-    requested format containing lightcurve data satisfying the search constraints.
-
-    Ref. https://irsa.ipac.caltech.edu/docs/program_interface/ztf_lightcurve_api.html
-
-    :param coordinates: Coordinates of object expressed CoordClass notation in J2000 RA Dec (Decimal) format.
-    :type coordinates: CoordClass
-    :param radius: Radius of cone search ** in degrees ** for passing to ZTF
-    :type radius: float
-    :param return_type: For selection of different return types, e.g. "VOTABLE" (Default), "HTML", "CSV"
-    :type return_type: str
-    :param column_filters: Not used currently
-    :returns:
-        (boolean) Valid data return
-        (DataFrame) Data payload
-    :rtype: tuple
-
-    """
-    filterStr = getFilterStr(config.ztf.filters)  # limit filters (requested) to ZTF subset
-
-    status = True
-    delim = "%20"
-    ra = coordinates.ra_str() + delim
-    dec = coordinates.dec_str() + delim
-    radius_str = to_string(radius, 5)
-    if column_filters is None:
-        column_filters = {}
-
-    queryPart = "nph_light_curves"
-    pos = "POS=CIRCLE" + delim + ra + dec + radius_str
-    bandname = "BANDNAME=" + filterStr
-    form = "FORMAT=" + return_type
-    badCatFlagsMask = "BAD_CATFLAGS_MASK=32768"
-
-    url_payload = f"{config.ztf.URL}{queryPart}?{pos}&{bandname}&{form}&{badCatFlagsMask}"
-
-    # establish http connection
-    # http = urllib3.PoolManager()
-    # siteData = http.request('GET', url_payload)
-    print('Requesting data from Zwicky Transient Facility. Please wait ... ', end='')
-    with Spinner():
-        try:
-            siteData = urlopen(url_payload)
-            print(f'\r{" ":66}\r ', end='')
-            # print(' ', end='')
-        except HTTPError as err:
-            if err.code == 400:
-                print('Sorry. Could not complete request.')
-            else:
-                raise
-
-    if siteData.status != 200:  # Ensure good response is received back from IRSA
-        return config.badResponse
-
-    memFile = io.BytesIO(siteData.read())
-
-    votable = parse(memFile)
-    table = votable.get_first_table().to_table(use_names_over_ids=True)
-
-    if not len(table):  # Check table actually has data in it (i.e. possible no lightcurve data exists)
-        return config.badResponse
-
-    tablePD = table.to_pandas()
-
-    fi = pd.Series({"zg": "g", "zr": "r", "zi": "i"})  # map filter ID from ZTF code (used as key in output)
-    tablePD['filterID'] = tablePD['filtercode'].map(fi)
-
-    return status, tablePD
-
-
-def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_filters=None):
-    """Pan-STARRS light curve data retrieval
-
-    The Pan-STARRs catalog API allows the ability to search the Pan-STARRS catalogs. For additional information
-    on the catalogs please visit the Pan-STARRS Data Archive Home Page.
-
-    Ref. https://outerspace.stsci.edu/display/PANSTARRS/Pan-STARRS1+data+archive+home+page
-
-
-    :param coords: Coordinates of object expressed CoordClass notation in J2000 RA Dec (Decimal) format.
-    :type coords: CoordClass
-    :param radius: Radius of cone search ** in degrees ** for passing to Pan-STARRS
-    :type radius: float
-    :param return_type: For selection of different return types, e.g. "VOTABLE" (Default), "HTML", "CSV"
-    :type return_type: str
-    :param column_filters: Not used currently
-    :returns:
-        (boolean) Valid data return
-        (DataFrame) Data payload
-    :rtype: tuple
-
-    """
-
-    constraints = {'nDetections.gt': 1}
-    # set columns to return by default
-    # strip blanks and weed out blank and commented-out values
-    columns = """objID,raMean,decMean,nDetections,ng,nr,ni,nz,ny,
-        gMeanPSFMag,rMeanPSFMag,iMeanPSFMag,zMeanPSFMag,yMeanPSFMag""".split(',')
-    columns = [x.strip() for x in columns]
-    columns = [x for x in columns if x and not x.startswith('#')]
-
-    # limit filters (requested) to PanSTARRS subset
-    filterStr = getFilterStr('grizy')
-
-    status = True
-    if column_filters is None:
-        column_filters = {}
-
-    print('Searching for object in Pan-STARRS archive (MAST). Please wait ... ', end='')
-    with Spinner():
-        try:
-            # perform a cone search about coordinates to get detections
-            results = ps1cone(coords.getRA(), coords.getDEC(), radius, release='dr2', columns=columns, **constraints)
-            print(f'\r{" ":68}\r ', end='')
-        except HTTPError as err:
-            if err.code == 400:
-                print('Sorry. Could not complete request.')
-            else:
-                raise
-
-    if not results:
-        return config.badResponse
-
-    # convert to table
-    tab = ascii.read(results)
-
-    # improve the format
-    for filter in 'grizy':
-        col = filter + 'MeanPSFMag'
-        tab[col].format = ".4f"  # (only for printing?)
-        tab[col][tab[col] == -999.0] = np.nan  # set to nan if -999 before analysis
-
-    print('Searching for object detections. Please wait ... ', end='')
-    with Spinner():
-        try:
-            # get individual detections for first object in the list
-            dTab = getDetections(tab)
-            print(f'\r{" ":50}\r ', end='')
-
-        except HTTPError as err:
-            if err.code == 400:
-                print('Sorry. Could not complete request.')
-            else:
-                raise
-
-    if not len(dTab):  # Check table actually has data in it (i.e. possible no lightcurve data exists)
-        return config.badResponse
-    else:
-        dTab.remove_rows(dTab['psfFlux'] == 0)  # remove any rows where flux is zero
-        dTab['psfMag'] = -2.5 * np.log10(dTab['psfFlux']) + 8.90  # convert flux (in Janskys) to magnitude
-
-    return status, dTab.to_pandas()
-
-
-def getLightCurveDataPTF(coordinates: CoordClass, radius,
-                         return_type, column_filters=None):
-    """Palomar Transient factory light curve data retrieval
-
-    IRSA provides access to the PTF collection of lightcurve data through an application program interface (API).
-    Search, restriction, and formatting parameters are specified in an HTTP URL. The output is a table in the
-    requested format containing lightcurve data satisfying the search constraints.
-
-    Ref. https://irsa.ipac.caltech.edu/applications/Gator/GatorAid/irsa/catsearch.html
-
-    :param coordinates: Coordinates of object expressed CoordClass notation in J2000 RA Dec (Decimal) format.
-    :type coordinates: CoordClass
-    :param radius: Radius of cone search ** in degrees ** for passing to PTF
-    :type radius: float
-    :param return_type: For selection of different return types, e.g. "VOTABLE" (Default), "HTML", "CSV"
-    :type return_type: str
-    :param column_filters: Not used currently
-    :returns:
-        (boolean) Valid data return
-        (DataFrame) Data payload
-    :rtype: tuple
-
-    """
-
-    filterStr = getFilterStr(config.ptf.filters)  # limit filters (requested) to PTF subset
-
-    status = True
-
-    rt = ('HTML', 'ASCII', 'SVC', 'VOTABLE', 'XML') # not used currently
-    if column_filters is None:
-        column_filters = {}
-
-    print('Requesting data from Palomar Transient Factory. Please wait ... ', end='')
-    with Spinner():
-        try:
-            votable = Irsa.query_region(f"{coordinates.getRA()}, {coordinates.getDEC()}", catalog="ptf_lightcurves",
-                                        spatial="Cone", radius=radius * u.deg, verbose=False)
-            print(f'\r{" ":65}\r ', end='')
-        except HTTPError as err:
-            if err.code == 400:
-                print('Sorry. Could not complete request.')
-            else:
-                raise
-
-    if not len(votable):  # Check table actually has data in it (i.e. possible no lightcurve data exists)
-        return config.badResponse
-
-    tablePD = votable.to_pandas()
-
-    # Filter constraint - fid=1 (g filter) or fid=2 (R filter)
-    fi = pd.Series({1: "g", 2: "R"})  # map filter ID from ZTF code (used as key in output)
-    tablePD['filterID'] = tablePD['fid'].map(fi)
-    tablePD = tablePD.loc[tablePD['filterID'].isin(list(config.filterSelection))]
-
-    return status, tablePD
-
-
-def filterLineOut(statStr, statDict, lenDP=3, lenStr=30, lenVal=8):
-    """Output line of individual filter data to the console
-
-    e.g. "Median Absolute Deviation      0.039   0.026   0.024  "
-
-    :param statStr: String describing filter output
-    :type statStr: str
-    :param statDict: Dictionary of filter / summary statistic pairs
-    :type statDict: dict
-    :param lenDP: Number of decimal places for the value display (Optional, Default=3)
-    :type lenDP: int
-    :param lenStr: Length of the stat summary string (Optional, Default=30)
-    :type lenStr: int
-    :param lenVal: Total length of the value display (Optional, Default=8)
-    :type lenVal: int
-    """
-    print(f'{statStr:{lenStr}}', end='')
-    for key in config.filterSelection:
-        if key in statDict.keys():
-            if isinstance(statDict[key], (np.float64, np.float32)):
-                print(f'{statDict[key]:^{lenVal}.{lenDP}f}', end='')
-            elif isinstance(statDict[key], np.int64):
-                print(f'{statDict[key]:^{lenVal}}', end='')
-        else:
-            print(f'{" ":{lenVal}}', end='')
-    print()
+# ZTFfilters = {"zg": 0, "zr": 1, "zi": 2}
+# filterKey = df(ZTFfilters)
 
 
 class AstroObjectClass:
@@ -327,39 +65,78 @@ class AstroObjectClass:
         self.objectName = objectName
         self.shortDesc = subtitle
         self.pos = CoordClass(ra, dec)
+        self.plotRows = 0
+        self.filtersToPlot = ''
 
-    def preparePlot(self, plotRows):
-        fig, ax = plt.subplots(nrows=1, ncols=1, sharex='all', sharey='none')
-        ax.set_xlabel('Time [MJD]', fontsize=14)
-        ax.set_ylabel('Mag', fontsize=14)
-        ax.set_title(self.shortDesc, fontsize=12)
+    def incrPlotRows(self):
+        self.plotRows += 1
+
+    def plotRowsTrue(self):
+        return self.plotRows > 0
+
+    def append_filtersToPlot(self, filtersInArchive):
+        self.filtersToPlot += ''.join(filtersInArchive)
+
+    def get_filtersInAO(self):
+        if self.filtersToPlot != '':
+            return ''.join(re.findall(f'[{self.filtersToPlot}]', config.filterSelection))
+        else:
+            return ''
+
+    def preparePlot(self, filters):
+        fig, ax = plt.subplots(nrows=len(filters), ncols=1, sharex='all', sharey='none', figsize=(8, 11), dpi=300)
+        fig.suptitle(f'{self.objectName}', fontsize=16)
 
         return fig, ax
 
-    def finalisePlot(self, status, fig, ax):
-        if status:
+    def finalisePlot(self, fig, ax, filters):
+        if len(filters) > 1:
+            ax[len(filters) - 1].set_xlabel('Time [MJD]', fontsize=14)
+            ax[0].set_title(f'{self.shortDesc}', fontsize=12)
+            for c in ax:
+                r = c.get_subplotspec().rowspan.start
+                c.set_ylabel(f'{filters[r]} [Mag]', fontsize=12)
+                ymin, ymax = c.get_ylim()
+                if ymax - ymin < 1.0:
+                    ymid = (ymin + ymax) / 2
+                    c.set_ylim(ymid - 0.5, ymid + 0.5)
+                c.set_ylim(reversed(c.set_ylim()))  # flip the y-axis
+                c.legend()
+        else:
+            ax.set_xlabel('Time [MJD]', fontsize=12)
+            ax.set_ylabel(f'{filters}[Mag]', fontsize=12)
+            ax.set_title(f'{self.shortDesc}', fontsize=12)
             ymin, ymax = ax.get_ylim()
-            if ymax-ymin < 1.0:
-                ymid = (ymin + ymax)/2
-                ax.set_ylim(ymid-0.5, ymid+0.5)
+            if ymax - ymin < 1.0:
+                ymid = (ymin + ymax) / 2
+                ax.set_ylim(ymid - 0.5, ymid + 0.5)
             ax.set_ylim(reversed(ax.set_ylim()))  # flip the y-axis
-            fig.suptitle(f'{self.objectName}', fontsize=16)
-            plt.show()
+            ax.legend()
+
+        plt.show()
 
 
 class AODataClass:
     """Class for storing and manipulating the data for an astronomical object"""
 
-    def __init__(self, AO: AstroObjectClass):
-        self.table = pd.DataFrame()
-        self.samples = {}
-        self.mad = {}
-        self.SD = {}
-        self.median = {}
-        self.mean = {}
+    def __init__(self, AO: AstroObjectClass, archive: config.Archive):
         self.AO = AO
+        self.archive = archive
+        self.table = pd.DataFrame()  # This dataframe contains the response from the archive server
+        self.samples = {}  # The count of samples returned for each filter
+        self.mad = {}  # The median absolute deviation of data from each filter
+        self.SD = {}  # The std Dev of data from each filter
+        self.median = {}  # the median of data from each filter
+        self.mean = {}  # the mean of data from each filter
+        self.filtersReturned = {}  # df of filter id based on data returned
+        self.id = {}
+        self.aRefmag = {}
+        self.sdssRefmag = {}
+        self.filename = ''
+        self.dataStatus = False
+        self.sigma3 = {'g': 0.0, 'r': 0.0}
 
-    def getLightCurveData(self, catalog, radius=None, return_type='VOTABLE'):
+    def getLightCurveData(self, radius=None, return_type='VOTABLE'):
         """
         Class method to get light curve data from a particular source
 
@@ -368,8 +145,6 @@ class AODataClass:
 
         :param radius: Cone search radius in arcseconds. Optional
         :type radius: float
-        :param catalog: Named tuple representing archive under query
-        :type catalog: config.Archive
         :param return_type: Type of return format required. Should be 'VOTABLE'
         :type return_type: str
         :return: Successful extract and data ingested
@@ -380,11 +155,11 @@ class AODataClass:
         else:
             radiusDeg = radius / 3600
 
-        if catalog.name == 'ZTF':
-            response = getLightCurveDataZTF(self.AO.pos, radiusDeg, return_type)
-        elif catalog.name == 'Pan-STARRS':
+        if self.archive.name == 'ZTF':
+            response = getLightCurveDataZTF(self.AO.pos, radiusDeg)
+        elif self.archive.name == 'Pan-STARRS':
             response = getLightCurveDataPanSTARRS(self.AO.pos, radiusDeg, return_type='CSV')
-        elif catalog.name == 'PTF':
+        elif self.archive.name == 'PTF':
             response = getLightCurveDataPTF(self.AO.pos, radiusDeg, return_type)
         else:
             return False
@@ -397,6 +172,48 @@ class AODataClass:
 
     def getCol(self, col_name):
         return self.table[col_name]
+
+    def set_filtersReturned(self):
+        """Determine which filters have returned data for an archive
+
+        Need to use this for """
+        self.filtersReturned = self.table[self.archive.filterField].unique().tolist()
+
+    def get_filtersReturned(self):
+        return self.filtersReturned
+
+    def setID(self):
+        for f in self.filtersReturned:
+            oidArray = self.table[(self.table[self.archive.filterField] == f)][self.archive.oidField].unique()
+            if len(oidArray) != 1:
+                maxC = 0
+                for id in oidArray:
+                    countOID = len(self.table[self.table[self.archive.oidField] == id])
+                    if countOID > maxC:
+                        self.id[f] = id
+                        maxC = countOID
+                print(f'Warning: Error determining OID due to multiple objects. '
+                      f'Primary OID {self.id[f]} refmag ({f}mag) used.')
+                # self.table.drop(self.table[(self.table[self.archive.filterField] == f) &
+                #                            (self.table[self.archive.oidField] != self.id[f])].index, inplace=True)
+            else:
+                self.id[f] = oidArray[0]
+
+    def setRefMag(self, fileCheck=False):
+        # TODO must check in oidlist file if fileCheck is True and save refmag to file
+
+        oidList = []
+        for f in self.filtersReturned:
+            # oidList.append(str(self.id[f]))
+
+            response = getOIDZTFinfo(str(self.id[f]))
+            if len(response):
+                oidData = response
+                # oidRow = oidData[(oidData['oid'] == self.id[f]) & (oidData['filtercode'] == f'z{f}')]
+                self.aRefmag[f] = float(oidData[(oidData['oid'] == self.id[f]) &
+                                                (oidData['filtercode'] == f'z{f}')]['refmag'].values)
+
+        pass
 
     def setSamples(self, col_name, group_col):
         self.samples = self.table.groupby(group_col)[col_name].count()
@@ -451,6 +268,11 @@ class AODataClass:
         """
         self.mean = self.table.groupby(group_col)[col_name].mean()
 
+    def set3Sigma(self):
+        for f in 'gr':
+            if self.archive.name == 'ZTF' and f in self.filtersReturned:
+                self.sigma3[f] = threeSigma(self.archive, f, self.median[f])
+
     def addColourColumn(self, series):
         """Method to add a colour column
 
@@ -463,7 +285,26 @@ class AODataClass:
         c = pd.Series({"g": "green", "r": "red", "i": "indigo", "z": "blue", "y": "black", "R": "orange"})
         self.table['colour'] = self.table[series].map(c)
 
-    def getData(self, archive):
+    def _getStats(self):
+        """Method to set statistics
+
+        Internal method to set statistics for instance of object and archive / catalog. Sets series for filters.
+
+        """
+        self.setSamples(self.archive.magField, self.archive.filterField)
+        self.setMad(self.archive.magField, self.archive.filterField)
+        self.setSD(self.archive.magField, self.archive.filterField)
+        self.setMedian(self.archive.magField, self.archive.filterField)
+        self.setMean(self.archive.magField, self.archive.filterField)
+        self.set3Sigma()
+
+    def prepRawData(self):
+        self.set_filtersReturned()
+        self.setID()
+        self.setRefMag()
+        self._getStats()
+
+    def getData(self):
         """Method to encapsulate extraction of data
 
          Data extracted from catalog and summary statistical analysis carried out.
@@ -473,12 +314,9 @@ class AODataClass:
         :rtype: bool
         """
 
-        if self.getLightCurveData(catalog=archive):
-            self.setSamples(archive.magField, archive.filterField)
-            self.setMad(archive.magField, archive.filterField)
-            self.setSD(archive.magField, archive.filterField)
-            self.setMedian(archive.magField, archive.filterField)
-            self.setMean(archive.magField, archive.filterField)
+        if self.getLightCurveData():
+            self.prepRawData()
+            self.dataStatus = True
             return True
         else:
             return False
@@ -486,46 +324,92 @@ class AODataClass:
     def getTable(self):
         return self.table
 
-    def plot(self, fig, ax, archive):
+    def _setFilename(self, mag):
+        self.filename = f'data/LC/{mag}/' + \
+                        f'{self.archive.name}' + \
+                        f'{config.filterSelection}' + \
+                        f'{self.AO.objectName}' + \
+                        f'.csv'
+
+    def fileExists(self, mag):
+        self._setFilename(mag)
+        return os.path.isfile(self.filename)
+
+    def saveTable(self, mag):
+        if not os.path.exists(f'data/LC/{mag}'):
+            os.makedirs(f'data/LC/{mag}')
+        self.table.to_csv(self.filename, index=False, header=True)
+
+    def loadTable(self):
+        self.table = pd.read_csv(self.filename, header=0)
+        self.prepRawData()
+
+    def plot(self, fig, ax, archive, filters):
         """Method to encapsulate the plotting of data
 
         Sets colour column to distinguish different filters used in data, then sets up plot from given
         X and Y columns. Title is set to object name.
 
-        :param ax:
+        :param fig: Encapsulating figure object
+        :type fig:
+        :param ax: Axes object
         :type ax:
-        :param x: X-axis title
-        :type x: str
-        :param y: Y-axis title
-        :type y: str
         :param archive: Archive object used for configuration of the plot
         :type archive: config.Archive
         """
-        if True:  # TODO Need to sort this out for different catalogs
-            self.addColourColumn(archive.filterField)
-            colors = self.table['colour']
+        if self.dataStatus:  # TODO Need to sort this out for different catalogs
+            self.addColourColumn(self.archive.filterField)
 
-        # fig, ax = plt.subplots()
+            for i in filters:
+                if len(filters) > 1:
+                    filterTable = self.table[self.table[self.archive.filterField] == i]
+                    if len(filterTable):
+                        ax[filters.index(i)].scatter(filterTable[archive.timeField],
+                                                     filterTable[archive.magField],
+                                                     c=filterTable['colour'],
+                                                     marker=archive.marker,
+                                                     label=f'{i} filter ({archive.name})')
+                        self._plotLines(archive, ax[filters.index(i)], i)
 
-        ax.scatter(self.table[archive.timeField], self.table[archive.magField],
-                   c=colors, marker=archive.marker)
-        # ax.set_ylim(reversed(ax.set_ylim()))  # flip the y-axis
-        # plt.xlabel(x, fontsize=14)
-        # plt.ylabel(y, fontsize=14)
-        # plt.suptitle(f'{self.AO.objectName} {archive.name}', fontsize=16)
-        # plt.title(self.AO.shortDesc, fontsize=12)
-        # legend1 = ax.legend(*scatter.legend_elements(num=5, c=colors, label=archive.filterField),
-        #                     loc="upper right", title="Filters")
-        # ax.add_artist(legend1)
+                else:
+                    ax.scatter(self.table[archive.timeField], self.table[archive.magField],
+                               c=self.table['colour'], marker=archive.marker,
+                               label=f'{archive.name} {filters} filter')
+                    self._plotLines(archive, ax, i)
 
-        # plt.show()
+    def _plotLines(self, archive, ax, fs):
+        """Plot horizontal lines
 
-    def objectOutput(self, archive):
+        Insert various horizontal lines on axis passed, based on archive and filter and fill between
+        3 sigma if available (currently only ZTF-g)
+
+        :param archive:
+        :type archive: config.Archive
+        :param ax: axis object
+        :type ax: Axes object
+        :param fs: filter being plotted
+        :type fs: str
+        """
+        ax.axhline(y=self.median[fs],
+                   color='black', linestyle='-', label=f'{archive.name} {fs} filter median')
+
+        if archive.name == 'ZTF' and fs in 'g':
+            self.sigma3 = threeSigma(self.archive, fs, self.median[fs])
+            upBound = self.median[fs] + self.sigma3
+            lowBound = self.median[fs] - self.sigma3
+
+            ax.axhline(y=upBound, color='grey', linestyle='--', alpha=0.3,
+                       label=f'{archive.name} {fs} filter, 3{chr(963)}')
+            ax.axhline(y=lowBound, color='grey', linestyle='--', alpha=0.3)
+            ax.fill_between(self.table.sort_values(by=[archive.timeField])[archive.timeField],
+                            lowBound, upBound, alpha=0.1)
+
+    def objectOutput(self):
         """Method to encapsulate data output
 
-        Table of summary statistics is sent to console with a plot of data output to plot window.
+        Table of summary statistics is sent to console.
         """
-        print(f"Archive name: {archive.name}")
+        print(f"Archive name: {self.archive.name}")
         print(f'{" ":30}', end='')
         for key in config.filterSelection:
             print(f'{key:^8}', end='')
@@ -537,6 +421,67 @@ class AODataClass:
         filterLineOut('Median', self.median, 2)
         filterLineOut('Mean', self.mean, 2)
         print()
-        # plot graph of mag data vs. date
-        # self.plot(('mjd', '$mjd$'), ('mag', '$mag$'), 'filtercode')
-        # self.plot('$Time [MJD]$', '$mag$', archive)
+
+    def objectStatSave(self, r):
+        """Method to encapsulate summary data save (into table row)
+        :param r: AOobject pointer
+        :type r:
+
+        """
+        r['ZTFObject'] = True
+        for f in self.filtersReturned:
+            r[f'ZTF{f}oid'] = self.id[f]
+            r[f'ZTF{f}filterID'] = f
+            r[f'ZTF{f}Samples'] = self.samples[f]
+            r[f'ZTF{f}MAD'] = self.mad[f]
+            r[f'ZTF{f}SD'] = self.SD[f]
+            r[f'ZTF{f}Median'] = self.median[f]
+            r[f'ZTF{f}Mean'] = self.mean[f]
+            r[f'Stat{f}Included'] = True
+            r[f'ZTF{f}RefMag'] = self.aRefmag[f]
+
+    def outliersExist(self, a, threshold):
+        """Check if archive data has samples outside 3 sigma range
+
+        Function for checking if any sample data returned from archive has detections outside the
+        3 sigma range for that mag (as calculated previously from reference data for archive.
+
+        Use threshold values of sample count and mag scaling from config to reject obviously bad data
+
+        :param a: archive
+        :type a: config.Archive
+        :return: True if samples exist outside the median 3 sigma value
+        :rtype: bool
+        :param threshold: dict from config
+        :type threshold: dict
+        """
+        if a.name == 'ZTF':
+            for f in self.filtersReturned:
+                upLim = self.median[f] + self.sigma3[f]
+                loLim = self.median[f] - self.sigma3[f]
+
+                # r = p[
+                #     (p['ZTFSD'] > (self.meanOfSD - config.sigma * self.SDofSD)) &
+                #     (p['ZTFSD'] < (self.meanOfSD + config.sigma * self.SDofSD))
+                #     ]
+
+                self.table['outlier'] = 'inside'
+
+                self.table['outlier'] = np.where(
+                    ((self.table[a.filterField] == f) &
+                     (self.table[a.magField] > upLim)), 'high', np.where(
+                        ((self.table[a.filterField] == f) &
+                         (self.table[a.magField] < loLim)), 'low', 'inside'))
+
+                # TODO Need to amend for other filters - currently only 'g' - will not worry about different archives
+                #  at the moment
+
+                outlierCount = len(self.table[(self.table['outlier'] != 'inside')])
+
+                # check for outliers count between min and max (inclusive) values - initially 0 to 30
+                # and also check count is less than a percentage of total samples - initially 10%
+                if threshold['countMin'] <= outlierCount <= threshold['countMax'] \
+                        and outlierCount <= int(self.samples[f] * threshold['countPC']):
+                    return True
+                else:
+                    return False
