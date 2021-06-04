@@ -86,7 +86,7 @@ class SDSSdata:
         self.samples = Table
         self.mag = mag
         self.filter = ''
-        self.totalSamples = 0
+        self.totalSamples = {'g': 0, 'r': 0}
         self.medianOfSD = {'g': 0.0, 'r': 0.0}
         self.SDofSD = {'g': 0.0, 'r': 0.0}
         self.meanOfSD = {'g': 0.0, 'r': 0.0}
@@ -94,7 +94,7 @@ class SDSSdata:
         self.meanSamplesLC = {'g': 0.0, 'r': 0.0}
         self.ZTFrefMag = {'g': 0.0, 'r': 0.0}
         self.SDSSrefMag = {'g': 0.0, 'r': 0.0}
-        self.filename = f'data/SDSS/fullSDSSdata.csv'
+        self.filename = f'data/SDSS/fullSDSSdata_{config.startingSampleSize:03}.csv'
 
     def addColumns(self):
         self.samples.add_column(False, name='ZTFObject')
@@ -115,7 +115,7 @@ class SDSSdata:
         magLow = self.mag - config.stepMag / 2
         magHigh = self.mag + config.stepMag / 2
         query = f"SELECT TOP {sampleCount} objid as Name, ra as RA, dec as DEC, " \
-                f"{self.mag} as Description, g as SDSSgRefMag, r as SDSSgRefMag FROM PhotoPrimary " \
+                f"{self.mag} as Description, g as SDSSgRefMag, r as SDSSrRefMag FROM PhotoPrimary " \
                 f"WHERE g BETWEEN {magLow} AND {magHigh} " \
                 f"AND dec BETWEEN {config.DecMin} AND {config.DecMax} " \
                 f"AND type = 6 " \
@@ -136,84 +136,46 @@ class SDSSdata:
             with open(self.filename, mode='a') as f:
                 f.seek(0, os.SEEK_END)
                 self.samples.write(f, format='ascii.no_header')
-            # ascii.write(self.samples,
-            #             output=self.filename,
-            #             format='csv',
-            #             overwrite=True)
         return False
 
-    def statsOfStats(self):
+    def _setDetailStats(self, p, f):
+        self.medianOfSD[f] = np.nanmedian(p[f'ZTF{f}SD'])
+        self.SDofSD[f] = np.nanstd(p[f'ZTF{f}SD'])
+        self.meanOfSD[f] = np.nanmean(p[f'ZTF{f}SD'])
+        self.meanSamplesLC[f] = np.nanmean(p[f'ZTF{f}Samples'])
+
+    def statsOfStats(self, f):
         p = self.samples[(self.samples['ZTFObject'] == True)]
 
-        self.totalSamples = len(p['ZTFObject'])
-        for f in 'gr':
-            self.usedSamples[f] = len(p[(p[f'ZTF{f}Samples'] != 0)])
-            q = p.to_pandas()
-            if self.totalSamples and self.usedSamples[f] and not np.all(np.isnan(q[f'ZTF{f}SD'])):
-                self.medianOfSD[f] = np.nanmedian(p[f'ZTF{f}SD'])
-                self.SDofSD[f] = np.nanstd(p[f'ZTF{f}SD'])
-                self.meanOfSD[f] = np.nanmean(p[f'ZTF{f}SD'])
-                self.meanSamplesLC[f] = np.nanmean(p[f'ZTF{f}Samples'])
+        self.totalSamples[f] = len(p['ZTFObject'])
 
-    def optimiseStats(self):
-        for f in 'gr':
-            if not self.usedSamples[f]:
-                continue
-            else:
-                p = self.samples[(self.samples[f'Stat{f}Included'] == True)]
-                # r = p[
-                #     (p['ZTFSD'] > (self.meanOfSD - config.sigma * self.SDofSD)) &
-                #     (p['ZTFSD'] < (self.meanOfSD + config.sigma * self.SDofSD))
-                #     ]
-                r = p[p[f'ZTF{f}SD'] < (self.meanOfSD[f] + config.sigma * self.SDofSD[f])]
-                if len(r) < self.usedSamples[f]:
-                    if len(r):
-                        self.usedSamples[f] = len(r)
-                        self.medianOfSD[f] = np.nanmedian(p[f'ZTF{f}SD'])
-                        self.SDofSD[f] = np.nanstd(r[f'ZTF{f}SD'])
-                        self.meanOfSD[f] = np.nanmean(r[f'ZTF{f}SD'])
-                        self.meanSamplesLC[f] = np.nanmean(r[f'ZTF{f}Samples'])
+        self.usedSamples[f] = len(p[(p[f'ZTF{f}Samples'] != 0)])
+        q = p.to_pandas()
+        if self.totalSamples[f] and self.usedSamples[f] and not np.all(np.isnan(q[f'ZTF{f}SD'])):
+            self._setDetailStats(p, f)
 
-    # def optimiseStats_old(self):
-    #     while self.totalSamples > config.finalSampleSize:
-    #         pass
-    #         p = self.samples[(self.samples['StatIncluded'] == True) & (self.samples['ZTFObject'] == True)]
-    #         self.samples['StatIncluded'][self.samples['ZTFSD'] == p['ZTFSD'].max()] = False
-    #         q = self.samples[(self.samples['StatIncluded'] == True) & (self.samples['ZTFObject'] == True)]
-    #
-    #         if not len(q):
-    #             break
-    #         prevSD = self.SDofSD
-    #         self.totalSamples = len(q)
-    #         self.SDofSD = np.std(q['ZTFSD'])
-    #         self.meanSamplesLC = np.mean(q['ZTFSamples'])
-    #         if prevSD * config.DQ < self.SDofSD:
-    #             if config.verbose:
-    #                 print(f'Reached {config.DQ:2.0%} asymptote. ', end='')
-    #             break
-    #         if q[q['ZTFSD'] < self.SDofSD * 3]:
-    #             break
-    #     if config.verbose:
-    #         print(f'Used {self.totalSamples} samples for magnitude {self.mag:4.2f}±{config.stepMag / 2:5.3f}')
-    #     pass
+    def optimiseStats(self, f):
+        if self.usedSamples[f]:
+            p = self.samples[(self.samples[f'Stat{f}Included'] == True)]
+
+            r = p[p[f'ZTF{f}SD'] < (self.meanOfSD[f] + config.sigma * self.SDofSD[f])]
+            if len(r) < self.usedSamples[f]:
+                if len(r):
+                    self.usedSamples[f] = len(r)
+                    self._setDetailStats(r, f)
 
     def getStats(self, f):
-        statsList = [self.mag, self.totalSamples]
-        for f in 'gr':
-            statsList.append(self.medianOfSD[f])
-            statsList.append(self.SDofSD[f])
-            statsList.append(self.meanOfSD[f])
-            statsList.append(self.usedSamples[f])
-            statsList.append(self.meanSamplesLC[f])
+        statsList = [self.mag, f, self.totalSamples[f], self.medianOfSD[f], self.SDofSD[f], self.meanOfSD[f],
+                     self.usedSamples[f], self.meanSamplesLC[f]]
         return statsList
 
-    def plotSkyObjects(self, sky: Sky):
+    def plotSkyObjects(self, sky: Sky, f):
         ra = coord.Angle(self.samples['RA'] * u.degree)
         ra = ra.wrap_at(180 * u.degree)
         dec = coord.Angle(self.samples['DEC'] * u.degree)  # .filled(np.nan)
         sky.ax.scatter(ra.radian, dec.radian,
                        marker='.',
-                       c=self.samples["SDSSgRefMag"],
+                       c=self.samples[f"SDSS{f}RefMag"],
                        cmap=sky.cmap, alpha=0.9)
 
     def setTable(self, tableData: pd.DataFrame):

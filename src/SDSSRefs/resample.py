@@ -26,6 +26,7 @@ back, this needs to be resampled into separate bins for analysis and output.
 This will also allow for changing the mag sample sizes (although obviously won't change the number of samples)
 
 """
+import numpy as np
 import pandas as pd
 from numpy import arange
 
@@ -35,6 +36,33 @@ from SDSSRefs import config
 from SDSSRefs.SDSS import SDSSdata, NoLCList, Sky
 from SDSSRefs.outputStats import Stats
 from SDSSRefs.parse import ParseDir, parseLC, parseSDSS
+
+SDSSfullDataColumns = ['Name', 'RA', 'DEC', 'Description',
+                   'SDSSgRefMag', 'SDSSrRefMag',
+                   'ZTFObject',
+                   'ZTFgoid', 'ZTFgfilterID', 'ZTFgSamples', 'ZTFgMAD', 'ZTFgSD', 'ZTFgMedian', 'ZTFgMean',
+                   'StatgIncluded', 'ZTFgRefMag',
+                   'ZTFroid', 'ZTFrfilterID', 'ZTFrSamples', 'ZTFrMAD', 'ZTFrSD', 'ZTFrMedian', 'ZTFrMean',
+                   'StatrIncluded', 'ZTFrRefMag']
+
+SDSSDataColumns = {'g': ['Name', 'RA', 'DEC', 'Description',
+                    'SDSSgRefMag',
+                    'ZTFObject',
+                    'ZTFgoid', 'ZTFgfilterID', 'ZTFgSamples', 'ZTFgMAD', 'ZTFgSD', 'ZTFgMedian', 'ZTFgMean',
+                    'StatgIncluded', 'ZTFgRefMag'],
+                   'r': ['Name', 'RA', 'DEC', 'Description',
+                    'SDSSrRefMag',
+                    'ZTFObject',
+                    'ZTFroid', 'ZTFrfilterID', 'ZTFrSamples', 'ZTFrMAD', 'ZTFrSD', 'ZTFrMedian', 'ZTFrMean',
+                    'StatrIncluded', 'ZTFrRefMag']}
+
+
+def getRange(df, magField):
+    mod = int(1 / config.stepMag)
+    minVal = (int(df[magField].min() * mod)) / mod
+    maxVal = (int(df[magField].max() * mod) + 1) / mod
+    bins = int((maxVal - minVal) / config.stepMag)
+    return minVal, maxVal, bins
 
 
 def resample():
@@ -50,24 +78,34 @@ def resample():
         LCDataTable = parseLC(LCDataTable)
     else:
         SDSSDataTable = pd.DataFrame()
-        SDSSDataTable = parseSDSS(SDSSDataTable)
+        SDSSDataTable = parseSDSS(SDSSDataTable)  # get SDSS object data
+
+        oidListDF = pd.read_csv(LCconfig.OIDListFile, header=0)  # get ZTF OID data with refmags
 
     for f in 'gr':
-        filterData = SDSSDataTable[(SDSSDataTable[f'ZTF{f}Samples'] != 0)]
+        filterData = SDSSDataTable[(SDSSDataTable[f'ZTF{f}Samples'] != 0)][SDSSDataColumns[f]]  # get data for specific filter
+        fullDF = pd.merge(filterData, oidListDF, left_on=[f'ZTF{f}oid'], right_on=['oid'], how='inner')  # merge on OID
 
-        for mag in arange(config.minMag - 1, config.maxMag + 1, config.stepMag):
+        magField = f'ZTF{f}RefMag'
+        minMag, maxMag, bins = getRange(fullDF, magField)
+
+        filterData = fullDF[fullDF['filtercode'] == f'z{f}'][magField]
+        hist = np.histogram(filterData, bins=bins, range=(minMag, maxMag))
+
+        for mag in arange(minMag, maxMag, config.stepMag):
+
             lowMagLimit = mag - config.stepMag / 2
             highMagLimit = mag + config.stepMag / 2
             if config.verbose:
-                print(f'Sampling magnitude {mag} from SDSS Data.')
-            filterRange = filterData[(filterData[f'{f}mag'].between(lowMagLimit, highMagLimit))]
+                print(f'Sampling {f} filter data, magnitude {mag} from SDSS.')
+            filterRange = fullDF[(fullDF[magField].between(lowMagLimit, highMagLimit))]
             if not len(filterRange):
                 continue
 
             sdssDataHolder = SDSSdata(mag)
             sdssDataHolder.setTable(filterRange)
             # status, objectsList = sdssDataHolder.getSamples()
-            sdssDataHolder.plotSkyObjects(skyPlot)
+            sdssDataHolder.plotSkyObjects(skyPlot, f)
             # if status:
             #     if config.verbose:
             #         print(f'Sample completed successfully.')
@@ -86,10 +124,10 @@ def resample():
             #         archiveDataHolder.loadTable()
             #         archiveDataHolder.objectStatSave(i)
 
-                # sdssDataHolder.saveSamples()
-            sdssDataHolder.statsOfStats()
-            sdssDataHolder.optimiseStats()
-            statsOfStats.add_row(sdssDataHolder.getStats(filter))
+            # sdssDataHolder.saveSamples()
+            sdssDataHolder.statsOfStats(f)
+            sdssDataHolder.optimiseStats(f)
+            statsOfStats.add_row(sdssDataHolder.getStats(f))
             print()
 
     statsOfStats.removeBlanks()

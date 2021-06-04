@@ -3,6 +3,7 @@ import os
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyvo
@@ -10,11 +11,11 @@ from astropy.io.votable import parse
 from astropy.table import Table
 from astropy.io import ascii
 
-
 from LCExtract import config
 from LCExtract.coord import CoordClass, to_string
 from LCExtract.filter import getFilterStr
 from LCExtract.utilities import Spinner
+from SDSSRefs import config as SDSSConfig
 
 delim = "%20"
 
@@ -48,7 +49,6 @@ class OIDListFile:
             if not os.path.exists('data/LC'):
                 os.makedirs('data/LC')
             if not os.path.isfile(config.OIDListFile):
-
                 with open(config.OIDListFile, 'a') as f:
                     pd.DataFrame(columns=OIDListFile.header,
                                  index=None).to_csv(f,
@@ -60,7 +60,8 @@ class OIDListFile:
 
     def add(self, response):
         with open(config.OIDListFile, 'a') as f:
-            pd.DataFrame(response).to_csv(f, index=False, header=False, columns=OIDListFile.header)  # header=f.tell() == 0
+            pd.DataFrame(response).to_csv(f, index=False, header=False,
+                                          columns=OIDListFile.header)  # header=f.tell() == 0
 
     def inList(self, OID):
         if len(self.df):
@@ -68,15 +69,6 @@ class OIDListFile:
         else:
             find = self.df[self.df['oid'] == int(OID)]
         return self.df[find]
-
-    def histogram(self, bins):
-        df = pd.DataFrame({
-            'length': [1.5, 0.5, 1.2, 0.9, 3],
-            'width': [0.7, 0.2, 0.15, 0.2, 1.1]}, index = ['pig', 'rabbit', 'duck', 'chicken', 'horse'])
-        hist = df.hist(bins=3)
-
-        hist = self.df.hist(bins=bins, column='refmag', by='filtercode')
-        pass
 
 
 def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters=None):
@@ -174,7 +166,6 @@ def refZTFobj(coordinates: CoordClass, mjd, filefracday, mag):
 
 
 def getOIDZTFinfo(oid: str):
-
     # response = []
     oidListFile = OIDListFile()
     # for oid in oidList:

@@ -21,7 +21,7 @@ from LCExtract.SDSS import SDSSdata
 from LCExtract.config import archives
 from LCExtract.dataretrieve import AstroObjectClass, AODataClass
 from LCExtract.entry import getObjects, setFilterUsage, setArchiveUsage
-from LCExtract.ztf import refZTFobj, getOIDZTFinfo
+from LCExtract.ztf import refZTFobj, getOIDZTFinfo, getZTFOidOffsetStats
 
 
 def startup():
@@ -61,7 +61,7 @@ def LCExtract():
                                              s[archives[a].timeField],
                                              s['filefracday'],
                                              s[archives[a].magField])
-                            ZTFoffset, ZTFsd = getOIDZTFinfo(refs)
+                            ZTFoffset, ZTFsd = getZTFOidOffsetStats(refs)
                             print(f'{AO.objectName} - Outlier MJD{s[archives[a].timeField]}: '
                                   f'Offset = {ZTFoffset:-10.5f} '
                                   f'SD = {ZTFsd:-10.5f}')

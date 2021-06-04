@@ -59,8 +59,7 @@ def threeSigma(archive, filterID, mag) -> float:
     :rtype: float
     """
     y1 = 0
-    if filterID == 'g':
-        c = config.medSD_c
-        for o in range(len(c)):
-            y1 += c[o] * mag ** (len(c) - o - 1)
+    c = config.medSD_c[filterID]
+    for o in range(len(c)):
+        y1 += c[o] * mag ** (len(c) - o - 1)
     return 3 * y1

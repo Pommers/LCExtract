@@ -17,6 +17,7 @@ from LCExtract.dataretrieve import AstroObjectClass, AODataClass
 from SDSSRefs import config
 from SDSSRefs.SDSS import SDSSdata, NoLCList, Sky
 from SDSSRefs.outputStats import Stats
+from SDSSRefs.resample import resample
 
 
 def controller():
@@ -41,7 +42,6 @@ def controller():
                 print(f'Sampling magnitude {mag} from SDSS.')
             sdssDataHolder = SDSSdata(mag)
             status, objectsList = sdssDataHolder.getSamples()
-            sdssDataHolder.plotSkyObjects(skyPlot)
             if status:
                 if config.verbose:
                     print(f'Sample completed successfully.')
@@ -82,15 +82,17 @@ def controller():
                         archiveDataHolder.objectStatSave(i)
 
                 fileInitialise = sdssDataHolder.saveSamples(fileInitialise)
-                sdssDataHolder.statsOfStats()
-                sdssDataHolder.optimiseStats()
+                # sdssDataHolder.statsOfStats()
+                # sdssDataHolder.optimiseStats()
                 for f in 'gr':
+                    # sdssDataHolder.plotSkyObjects(skyPlot, f)
                     statsOfStats.add_row(sdssDataHolder.getStats(f))
             print()
-    else:
-        statsOfStats.load()
+    # else:
+    #     statsOfStats.load()
 
-    statsOfStats.removeBlanks()
-    statsOfStats.save()
-    statsOfStats.plot()
-    skyPlot.show()
+    # statsOfStats.removeBlanks()
+    # statsOfStats.save()
+    # statsOfStats.plot()
+    # skyPlot.show()
+    resample()

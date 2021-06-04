@@ -20,7 +20,7 @@ SDSSDataSave = True
 SDSSDataRefresh = True
 
 # no. of samples
-startingSampleSize = 200
+startingSampleSize = 4
 finalSampleSize = 10
 
 # RA limits (probably won't be used)

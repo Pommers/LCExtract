@@ -100,7 +100,7 @@ def parseSDSS(fullSDSSTable: pd.DataFrame):
     # if full SDSS data file already exists
     if os.path.isfile(fullFN):
         # then load into dataframe
-        fullSDSSTable = pd.read_csv(fullFN, header=0)
+        fullSDSSTable = pd.read_csv(fullFN, header=0, sep=' ')
     else:
         # otherwise, read in and consolidate from all individual LC files in mag subdirectories
         LCconfig.filterSelection = 'gr'

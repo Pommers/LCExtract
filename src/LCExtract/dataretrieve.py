@@ -393,7 +393,7 @@ class AODataClass:
         ax.axhline(y=self.median[fs],
                    color='black', linestyle='-', label=f'{archive.name} {fs} filter median')
 
-        if archive.name == 'ZTF' and fs in 'g':
+        if archive.name == 'ZTF' and fs in 'gr':
             self.sigma3 = threeSigma(self.archive, fs, self.median[fs])
             upBound = self.median[fs] + self.sigma3
             lowBound = self.median[fs] - self.sigma3
