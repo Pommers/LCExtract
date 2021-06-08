@@ -33,7 +33,7 @@ from numpy import arange
 from LCExtract import config as LCconfig
 from LCExtract.dataretrieve import AstroObjectClass, AODataClass
 from SDSSRefs import config
-from SDSSRefs.SDSS import SDSSdata, NoLCList, Sky
+from SDSSRefs.SDSS import SDSSdata, NoLCList, Sky, Plot2
 from SDSSRefs.outputStats import Stats
 from SDSSRefs.parse import ParseDir, parseLC, parseSDSS
 
@@ -71,6 +71,7 @@ def resample():
     LCconfig.filterSelection = 'gr'
     archive = LCconfig.archives['z']
     skyPlot = Sky()
+    plot2 = Plot2()
 
     if config.LCDataRefresh:
         # Load all LC data into a dataframe
@@ -89,8 +90,10 @@ def resample():
         magField = f'ZTF{f}RefMag'
         minMag, maxMag, bins = getRange(fullDF, magField)
 
-        filterData = fullDF[fullDF['filtercode'] == f'z{f}'][magField]
-        hist = np.histogram(filterData, bins=bins, range=(minMag, maxMag))
+        filterHist = fullDF[fullDF['filtercode'] == f'z{f}'][magField]
+        hist = np.histogram(filterHist, bins=bins, range=(minMag, maxMag))
+
+        optimisedDF = pd.DataFrame()
 
         for mag in arange(minMag, maxMag, config.stepMag):
 
@@ -106,31 +109,18 @@ def resample():
             sdssDataHolder.setTable(filterRange)
             # status, objectsList = sdssDataHolder.getSamples()
             sdssDataHolder.plotSkyObjects(skyPlot, f)
-            # if status:
-            #     if config.verbose:
-            #         print(f'Sample completed successfully.')
-            #     sdssDataHolder.addColumns()
-            #     noLClist = NoLCList()
-            #     for i in objectsList:
-            #         if config.verbose == 'full':
-            #             print(f'Querying data for object {i.index + 1} ({i["Name"]}). ', end='')
-            #         objectHolder = AstroObjectClass(i['Name'], i['RA'], i['DEC'], i['Description'])
-            #         archiveDataHolder = AODataClass(objectHolder, archive)
-            #
-            #         # retrieve light curve data from file
-            #         if config.verbose == 'full':
-            #             print(f'\r{" ":66}\r', end='')
-            #             print(f'Object {i.index + 1} lightcurve data loaded from previous file.')
-            #         archiveDataHolder.loadTable()
-            #         archiveDataHolder.objectStatSave(i)
 
-            # sdssDataHolder.saveSamples()
             sdssDataHolder.statsOfStats(f)
             sdssDataHolder.optimiseStats(f)
+
+            optimisedDF = optimisedDF.append(sdssDataHolder.samples.to_pandas())
             statsOfStats.add_row(sdssDataHolder.getStats(f))
             print()
+
+        plot2.filterPlot(f, optimisedDF, statsOfStats.stats)
 
     statsOfStats.removeBlanks()
     statsOfStats.save()
     statsOfStats.plot()
     skyPlot.show()
+    plot2.show()

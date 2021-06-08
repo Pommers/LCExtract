@@ -52,6 +52,9 @@ class Stats:
         self.stats = Table(names=statsCols, dtype=(float, str, int, float, float, float, int, float))
 
     def plot(self):
+        if not os.path.isdir(config.plotsPath):
+            os.makedirs(config.plotsPath)
+
         fig, ax = plt.subplots(3, 1, sharex=True, figsize=(8, 11), dpi=300)
 
         for f in 'gr':
@@ -92,6 +95,7 @@ class Stats:
         ax[1].set_ylim(0, max(self.stats['totalSamplesMag']) * 1.1)
         fig.tight_layout()
         fig.show()
+        fig.savefig(config.ZTFScFilename)
 
     def save(self):
         if not os.path.exists('data'):

@@ -192,8 +192,9 @@ class AODataClass:
                     if countOID > maxC:
                         self.id[f] = id
                         maxC = countOID
-                print(f'Warning: Error determining OID due to multiple objects. '
-                      f'Primary OID {self.id[f]} refmag ({f}mag) used.')
+                if config.verbose=='full':
+                    print(f'Warning: Error determining OID due to multiple objects. '
+                          f'Primary OID {self.id[f]} refmag ({f}mag) used.')
                 # self.table.drop(self.table[(self.table[self.archive.filterField] == f) &
                 #                            (self.table[self.archive.oidField] != self.id[f])].index, inplace=True)
             else:

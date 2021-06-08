@@ -55,6 +55,7 @@ def LCExtract():
                     outliersFound[a] = archiveLCData[a].outliersExist(archives[a], config.threshold)
                     if outliersFound[a]:
                         outliers = archiveLCData[a].table[archiveLCData[a].table['outlier'] != 'inside']
+                        # TODO need to check on error values for outliers before searching for additional points in frame
                         # for each of the outlier datapoints in the LC sample
                         for i1, s in outliers.iterrows():
                             refs = refZTFobj(AO.pos,

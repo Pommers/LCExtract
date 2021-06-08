@@ -71,6 +71,9 @@ class OIDListFile:
         return self.df[find]
 
 
+oidListFile = OIDListFile()
+
+
 def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters=None):
     """Zwicky Transient facility light curve data retrieval
 
@@ -167,7 +170,7 @@ def refZTFobj(coordinates: CoordClass, mjd, filefracday, mag):
 
 def getOIDZTFinfo(oid: str):
     # response = []
-    oidListFile = OIDListFile()
+    # oidListFile = OIDListFile()
     # for oid in oidList:
     inList = oidListFile.inList(oid)
     if len(inList):

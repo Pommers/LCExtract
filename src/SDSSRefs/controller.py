@@ -24,17 +24,8 @@ def controller():
     statsOfStats = Stats()
     # set config for samples
 
-    # start iterator at min mag
-    #   # get SDSS startingSamples at mag (save data)
-    #   # get lightcurves for each object (save data)
-    #   # analyse for scatter
-    #   #   # discard bottom 20% (to reject variables and noisy observations)
-    #   #   # accept if change < 10% or samples remaining <= finalSamples
-    #   # repeat at next mag
-
     LCconfig.filterSelection = 'gr'
     archive = LCconfig.archives['z']
-    skyPlot = Sky()
     fileInitialise = True
     if config.SDSSDataRefresh:
         for mag in arange(config.minMag, config.maxMag, config.stepMag):
@@ -82,17 +73,9 @@ def controller():
                         archiveDataHolder.objectStatSave(i)
 
                 fileInitialise = sdssDataHolder.saveSamples(fileInitialise)
-                # sdssDataHolder.statsOfStats()
-                # sdssDataHolder.optimiseStats()
+
                 for f in 'gr':
-                    # sdssDataHolder.plotSkyObjects(skyPlot, f)
                     statsOfStats.add_row(sdssDataHolder.getStats(f))
             print()
-    # else:
-    #     statsOfStats.load()
 
-    # statsOfStats.removeBlanks()
-    # statsOfStats.save()
-    # statsOfStats.plot()
-    # skyPlot.show()
     resample()

@@ -47,7 +47,56 @@ class Sky:
         return self.ax
 
     def show(self):
+        if not os.path.isdir(config.plotsPath):
+            os.makedirs(config.plotsPath)
+
         self.fig.show()
+        self.fig.savefig(config.skyplotFilename)
+
+
+class Plot2:
+    def __init__(self):
+        self.fig, self.ax = self.create()
+
+    def create(self):
+        if not os.path.isdir(config.plotsPath):
+            os.makedirs(config.plotsPath)
+
+        self.fig, self.ax = plt.subplots(2, 1, sharex=True, figsize=(8, 7), dpi=300)
+
+        return self.fig, self.ax
+
+    def filterPlot(self, f, filterDF, stats):
+        i = 'gr'.index(f)
+        filterData = stats[stats['filter'] == f]
+        # plot Scatter of ZTF lightcurve samples based on SD of SD
+
+        # mc = np.where((filterDF[f'Stat{f}Included']), f, 'black')
+        inc = filterDF[(filterDF[f'Stat{f}Included'] == True)]
+        exc = filterDF[(filterDF[f'Stat{f}Included'] == False)]
+        # filterData[filterData['ZTFgfilterID'] == 'g']['ZTFgRefMag']['ZTFgSD']['ZTFgSamples']
+        self.ax[i].scatter(inc[f'ZTF{f}RefMag'], inc[f'ZTF{f}SD'], label='Light curve object SDs',
+                           alpha=0.4, marker='.', c=f)
+        self.ax[i].scatter(exc[f'ZTF{f}RefMag'], exc[f'ZTF{f}SD'],
+                           label=f'Excluded Light curves (>3{chr(963)})',
+                           alpha=0.4, marker='.', c='black')
+
+        upBound = filterData[f'MedianOfSD'] + filterData[f'SDofSD']
+        lowBound = filterData[f'MedianOfSD'] - filterData[f'SDofSD']
+        self.ax[i].fill_between(filterData['mag'], upBound, lowBound, color='grey', alpha=0.7,
+                                label=f'{f}-band sample {chr(963)}')
+        self.ax[i].plot(filterData['mag'], filterData[f'MedianOfSD'],
+                        label=f'Median of {f}-band', c='black', marker='.')
+        self.ax[i].set_ylabel(f'Std Dev ({chr(963)})', fontsize=10)
+        self.ax[i].set_title('ZTF Lightcurves Std Dev', fontsize=12)
+        self.ax[i].legend(loc='upper left')
+        self.ax[i].set_ylim(bottom=0, top=max(upBound) * 1.1)
+        # bestFit(filterData['mag'], filterData[f'MedianOfSD'], self.ax[i])
+
+    def show(self):
+        self.fig.tight_layout()
+        self.fig.show()
+        self.fig.savefig(config.ZTFSc2Filename)
 
 
 class NoLCList:
@@ -94,7 +143,7 @@ class SDSSdata:
         self.meanSamplesLC = {'g': 0.0, 'r': 0.0}
         self.ZTFrefMag = {'g': 0.0, 'r': 0.0}
         self.SDSSrefMag = {'g': 0.0, 'r': 0.0}
-        self.filename = f'data/SDSS/fullSDSSdata_{config.startingSampleSize:03}.csv'
+        self.filename = config.SDSSDataFilename
 
     def addColumns(self):
         self.samples.add_column(False, name='ZTFObject')
@@ -145,6 +194,7 @@ class SDSSdata:
         self.meanSamplesLC[f] = np.nanmean(p[f'ZTF{f}Samples'])
 
     def statsOfStats(self, f):
+        self.samples[f'Stat{f}Included'][np.where(np.isnan(self.samples[f'ZTF{f}SD']))] = False
         p = self.samples[(self.samples['ZTFObject'] == True)]
 
         self.totalSamples[f] = len(p['ZTFObject'])
@@ -157,12 +207,22 @@ class SDSSdata:
     def optimiseStats(self, f):
         if self.usedSamples[f]:
             p = self.samples[(self.samples[f'Stat{f}Included'] == True)]
+            count = 0
+            while len(p) and count < config.optCycles:
+                self.samples[f'Stat{f}Included'][
+                    np.where(
+                        (self.samples[f'ZTF{f}SD'] > (self.medianOfSD[f] + config.sigma * self.SDofSD[f])) |
+                        (self.samples[f'ZTF{f}SD'] < (self.medianOfSD[f] - config.sigma * self.SDofSD[f])))
+                ] = False
+                p = self.samples[(self.samples[f'Stat{f}Included'] == True)]
 
-            r = p[p[f'ZTF{f}SD'] < (self.meanOfSD[f] + config.sigma * self.SDofSD[f])]
-            if len(r) < self.usedSamples[f]:
-                if len(r):
-                    self.usedSamples[f] = len(r)
-                    self._setDetailStats(r, f)
+                # r = p[p[f'ZTF{f}SD'] < (self.meanOfSD[f] + config.sigma * self.SDofSD[f])]
+                if len(p) and len(p) != self.usedSamples[f]:
+                    self.usedSamples[f] = len(p)
+                    self._setDetailStats(p, f)
+                else:
+                    break
+                count += 1
 
     def getStats(self, f):
         statsList = [self.mag, f, self.totalSamples[f], self.medianOfSD[f], self.SDofSD[f], self.meanOfSD[f],

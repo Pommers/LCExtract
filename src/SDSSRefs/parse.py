@@ -94,8 +94,8 @@ def parseLC(fullLCTable: pd.DataFrame):
 
 def parseSDSS(fullSDSSTable: pd.DataFrame):
     # fullLCTable = pd.DataFrame()
-    basePath = 'data/SDSS'
-    fullFN = f'{basePath}/fullSDSSdata.csv'
+    basePath = config.SDSSBasePath  # 'data/SDSS'
+    fullFN = config.SDSSDataFilename  # f'{basePath}/fullSDSSdata.csv'
 
     # if full SDSS data file already exists
     if os.path.isfile(fullFN):
