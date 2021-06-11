@@ -30,7 +30,7 @@ def bestFit(x, y, ax):
 
     deg = 8
     c = np.polyfit(x, y, deg, rcond=None, full=False, w=None, cov=False)
-    print(f'Best fit line: {c}')
+    config.SDSSlog.info(f'Best fit line: {c}')
     y1 = 0
     for o in range(deg + 1):
         y1 += c[o] * x1 ** (deg - o)
@@ -114,5 +114,5 @@ class Stats:
     def load(self):
         if not os.path.exists('data'):
             os.makedirs('data/SDSS')
-            print('No SDSS files. Please set config \"SDSSDataRefresh\" parameter to \"True\"')
+            config.SDSSlog.warning('No SDSS files. Please set config \"SDSSDataRefresh\" parameter to \"True\"')
         self.stats = ascii.read(config.filename, format='csv')

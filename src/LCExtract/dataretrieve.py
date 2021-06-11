@@ -16,6 +16,7 @@ Notes
 -----
 
 """
+import datetime
 import os
 import re
 
@@ -27,18 +28,13 @@ from matplotlib import pyplot as plt
 from scipy import stats
 
 from LCExtract import config
+from LCExtract.config import LClog
 from LCExtract.coord import CoordClass
 from LCExtract.filter import filterLineOut
 from LCExtract.utilities import threeSigma
 from LCExtract.ztf import getLightCurveDataZTF, getOIDZTFinfo, OIDListFile
 from LCExtract.ptf import getLightCurveDataPTF
 from LCExtract.PanSTARRS import getLightCurveDataPanSTARRS
-
-"""filter dict and df for reference in output iteration"""
-
-
-# ZTFfilters = {"zg": 0, "zr": 1, "zi": 2}
-# filterKey = df(ZTFfilters)
 
 
 class AstroObjectClass:
@@ -113,6 +109,8 @@ class AstroObjectClass:
             ax.set_ylim(reversed(ax.set_ylim()))  # flip the y-axis
             ax.legend()
 
+        plotName = self.objectName if self.objectName != '' else datetime.datetime.now().strftime("%y%m%d%H%M%S")
+        plt.savefig(f'data/plots/{plotName}_{filters}.png')
         plt.show()
 
 
@@ -170,17 +168,11 @@ class AODataClass:
         else:
             return False
 
-    def getCol(self, col_name):
-        return self.table[col_name]
-
     def set_filtersReturned(self):
         """Determine which filters have returned data for an archive
 
         Need to use this for """
         self.filtersReturned = self.table[self.archive.filterField].unique().tolist()
-
-    def get_filtersReturned(self):
-        return self.filtersReturned
 
     def setID(self):
         for f in self.filtersReturned:
@@ -192,13 +184,15 @@ class AODataClass:
                     if countOID > maxC:
                         self.id[f] = id
                         maxC = countOID
-                if config.verbose=='full':
-                    print(f'Warning: Error determining OID due to multiple objects. '
-                          f'Primary OID {self.id[f]} refmag ({f}mag) used.')
+                LClog.info(f'Primary OID {self.id[f]} refmag ({f}mag) used. '
+                           f'(Note. Error determining OID due to multiple objects.)')
                 # self.table.drop(self.table[(self.table[self.archive.filterField] == f) &
                 #                            (self.table[self.archive.oidField] != self.id[f])].index, inplace=True)
             else:
                 self.id[f] = oidArray[0]
+                LClog.info(f'Primary OID {self.id[f]} refmag ({f}mag) used.')
+                # if config.verbose == 'full':
+                #     print()
 
     def setRefMag(self, fileCheck=False):
         # TODO must check in oidlist file if fileCheck is True and save refmag to file
@@ -365,6 +359,13 @@ class AODataClass:
                 if len(filters) > 1:
                     filterTable = self.table[self.table[self.archive.filterField] == i]
                     if len(filterTable):
+                        ax[filters.index(i)].errorbar(filterTable[archive.timeField],
+                                                      filterTable[archive.magField],
+                                                      filterTable[archive.magErr],
+                                                      fmt='none',
+                                                      ecolor='grey',
+                                                      elinewidth=0.7,
+                                                      label=f'{i} error ({archive.name})')
                         ax[filters.index(i)].scatter(filterTable[archive.timeField],
                                                      filterTable[archive.magField],
                                                      c=filterTable['colour'],
@@ -466,23 +467,28 @@ class AODataClass:
                 #     (p['ZTFSD'] < (self.meanOfSD + config.sigma * self.SDofSD))
                 #     ]
 
-                self.table['outlier'] = 'inside'
+                # self.table['outlier'] = 'inside'
 
                 self.table['outlier'] = np.where(
                     ((self.table[a.filterField] == f) &
-                     (self.table[a.magField] > upLim)), 'high', np.where(
+                     ((self.table[a.magField] - self.table[a.magErr]) >= upLim)), 'high', np.where(
                         ((self.table[a.filterField] == f) &
-                         (self.table[a.magField] < loLim)), 'low', 'inside'))
-
-                # TODO Need to amend for other filters - currently only 'g' - will not worry about different archives
-                #  at the moment
+                         ((self.table[a.magField] + self.table[a.magErr]) <= loLim)), 'low', 'inside'))
 
                 outlierCount = len(self.table[(self.table['outlier'] != 'inside')])
 
                 # check for outliers count between min and max (inclusive) values - initially 0 to 30
                 # and also check count is less than a percentage of total samples - initially 10%
-                if threshold['countMin'] <= outlierCount <= threshold['countMax'] \
-                        and outlierCount <= int(self.samples[f] * threshold['countPC']):
+                withinCountThreshold = threshold['countMin'] <= outlierCount <= threshold['countMax']
+                underTotalCountPC = outlierCount <= int(self.samples[f] * threshold['countPC'])
+                if withinCountThreshold and underTotalCountPC:
                     return True
                 else:
+                    if config.verbose == 'full':
+                        if not withinCountThreshold:
+                            LClog.info(f'Outlier count ({outlierCount}) for {self.AO.objectName} {f} filter, '
+                                       f'outside count threshold ({threshold["countMin"]} - {threshold["countMax"]}).')
+                        else:
+                            LClog.info(f'Outlier count ({outlierCount}) for {self.AO.objectName} {f} filter, '
+                                       f'over count percentage ({threshold["countPC"]}).')
                     return False

@@ -20,9 +20,9 @@ class ParseDir:
     @classmethod
     def getSubDir(cls, dirPath: str) -> list:
         if not os.path.isdir(dirPath):
-            print(f'Subdirectory \"{dirPath}\" does not exist.')
+            config.SDSSlog.error(f'Subdirectory \"{dirPath}\" does not exist.')
             exit(1)
-        print(f'Found Subdirectory \"{dirPath}\".')
+        config.SDSSlog.info(f'Found Subdirectory \"{dirPath}\".')
         return [name for name in os.listdir(dirPath) if os.path.isdir(os.path.join(dirPath, name))]
 
     @classmethod
@@ -38,7 +38,7 @@ class ParseDir:
     def pruneMultiple(cls) -> bool:  # DO NOT USE
         oids = cls.table['oid'].unique()
         if len(oids) > 1:
-            print('Multiple objects found. First object used.')
+            config.SDSSlog.warning('Multiple objects found. First object used.')
             cls.table = cls.table[cls.table['oid'] == oids[0]]
         return len(oids) > 1
 
@@ -67,24 +67,22 @@ def parseLC(fullLCTable: pd.DataFrame):
         dirTotal = len(LCdirs)
         for subDir in LCdirs:
             subDir_Count += 1
-            if config.verbose:
-                print(f'\nParsing subdirectory {subDir}, {subDir_Count} of {dirTotal}:')
+            config.SDSSlog.info(f'\nParsing subdirectory {subDir}, {subDir_Count} of {dirTotal}:')
             filePath = basePath + os.sep + subDir
             LCfiles = ParseDir.getFiles(filePath)
             for LCFile in LCfiles:
 
                 if 'gr' in LCFile:
                     filePathName = filePath + os.sep + LCFile
-                    if config.verbose == 'full':
-                        print(f'Opening {filePathName}')
+                    config.SDSSlog.debug(f'Opening {filePathName}')
                     file_Count += 1
                     if len(fullLCTable):
                         fullLCTable = fullLCTable.append(ParseDir.getTable(filePathName))
                     else:
                         fullLCTable = ParseDir.getTable(filePathName)
 
-        print(f'\nSubdirectories count: {subDir_Count}')
-        print(f'\nTotal files count: {file_Count}')
+        config.SDSSlog.info(f'\nSubdirectories count: {subDir_Count}')
+        config.SDSSlog.info(f'\nTotal files count: {file_Count}')
 
         # save file for next time
         fullLCTable.to_csv(f'{basePath}/fullLCdata.csv', index=False, header=True)
@@ -113,15 +111,14 @@ def parseSDSS(fullSDSSTable: pd.DataFrame):
         for SDSSFile in SDSSfiles:
 
             filePathName = filePath + os.sep + SDSSFile
-            if config.verbose == 'minimal':
-                print(f'Opening {filePathName}')
+            config.SDSSlog.info(f'Opening {filePathName}')
             file_Count += 1
             if len(fullSDSSTable):
                 fullSDSSTable = fullSDSSTable.append(ParseDir.getTable(filePathName))
             else:
                 fullSDSSTable = ParseDir.getTable(filePathName)
 
-        print(f'\nTotal files count: {file_Count}')
+        config.SDSSlog.info(f'\nTotal files count: {file_Count}')
 
         # save file for next time
         fullSDSSTable.to_csv(fullFN, index=False, header=True)

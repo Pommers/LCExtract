@@ -99,8 +99,7 @@ def resample():
 
             lowMagLimit = mag - config.stepMag / 2
             highMagLimit = mag + config.stepMag / 2
-            if config.verbose:
-                print(f'Sampling {f} filter data, magnitude {mag} from SDSS.')
+            config.SDSSlog.info(f'Sampling {f} filter data, magnitude {mag} from SDSS.')
             filterRange = fullDF[(fullDF[magField].between(lowMagLimit, highMagLimit))]
             if not len(filterRange):
                 continue

@@ -9,7 +9,6 @@ Description
 Module for access to SDSS data. Contains SDSSdata Class
 
 """
-import math
 import os
 
 import numpy as np
@@ -24,7 +23,6 @@ from matplotlib import colors
 from matplotlib import pyplot as plt
 
 from SDSSRefs import config
-from LCExtract import config as LCconfig
 
 
 class Sky:
@@ -100,13 +98,13 @@ class Plot2:
 
 
 class NoLCList:
-    def __init__(self):
-        self.file = self.openNLC()
-        self.list = Table
-        self.getFile()
+    # def __init__(self):
+        # self.file = self.openNLC()
+        # self.list = Table
+        # self.getFile()
 
-    @staticmethod
-    def openNLC():
+    @property
+    def file(self):
         try:
             f1 = open(config.LCNotFoundFile, 'a')
         except FileNotFoundError:
@@ -118,8 +116,12 @@ class NoLCList:
                 f1.flush()
         return f1
 
-    def getFile(self):
-        self.list = ascii.read(config.LCNotFoundFile, format='csv')
+    @property
+    def list(self):
+        return ascii.read(config.LCNotFoundFile, format='csv')
+
+    # def getFile(self):
+    #     self.list = ascii.read(config.LCNotFoundFile, format='csv')
 
     def add(self, ID, mag):
         self.file.write(f'{ID},{mag}' + os.linesep)

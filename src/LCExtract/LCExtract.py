@@ -17,6 +17,7 @@ Summary
 """
 # Self-authored package modules for inclusion
 from LCExtract import config
+from LCExtract.config import LClog
 from LCExtract.SDSS import SDSSdata
 from LCExtract.config import archives
 from LCExtract.dataretrieve import AstroObjectClass, AODataClass
@@ -42,20 +43,20 @@ def LCExtract():
     setFilterUsage()
     for i in objectsList:
         AO = AstroObjectClass(i['Name'], i['RA'], i['DEC'], i['Description'])
-        print(f"Object name: {AO.objectName} - summary statistics")
+        print(f"\n-------------------------------------------------------------\n"
+              f"Object name: {AO.objectName} - summary statistics")
 
         for a in archiveList:
             archiveLCData[a] = AODataClass(AO, archives[a])
             if archiveLCData[a].getData():
                 AO.incrPlotRows()
-                AO.append_filtersToPlot(archiveLCData[a].get_filtersReturned())
+                AO.append_filtersToPlot(archiveLCData[a].filtersReturned)
                 archiveLCData[a].objectOutput()
                 if archives[a].name == 'ZTF':
                     # check if archive data has data outside 3 sigma
                     outliersFound[a] = archiveLCData[a].outliersExist(archives[a], config.threshold)
                     if outliersFound[a]:
                         outliers = archiveLCData[a].table[archiveLCData[a].table['outlier'] != 'inside']
-                        # TODO need to check on error values for outliers before searching for additional points in frame
                         # for each of the outlier datapoints in the LC sample
                         for i1, s in outliers.iterrows():
                             refs = refZTFobj(AO.pos,
@@ -64,8 +65,8 @@ def LCExtract():
                                              s[archives[a].magField])
                             ZTFoffset, ZTFsd = getZTFOidOffsetStats(refs)
                             print(f'{AO.objectName} - Outlier MJD{s[archives[a].timeField]}: '
-                                  f'Offset = {ZTFoffset:-10.5f} '
-                                  f'SD = {ZTFsd:-10.5f}')
+                                  f'Offset = {ZTFoffset:-8.5f} '
+                                  f'SD = {ZTFsd:-8.5f}')
                         sdssRefAOs = SDSSdata(archiveLCData[a].median, AO.pos)
                         if sdssRefAOs.getSamples():
                             pass

@@ -8,6 +8,8 @@ summary
 Configuration and global data for package
 """
 import collections
+import logging
+import os
 
 import numpy as np
 
@@ -33,7 +35,7 @@ archAvail = "".join(list(archives.keys()))
 
 # Global variables
 coneRadius = 1 / 3600  # 1 arcseconds
-defaultFileName = 'data/test_objects.csv'
+defaultFileName = 'data/test_single.csv'
 badResponse = (False, '')
 
 # filter management
@@ -68,4 +70,21 @@ timeWindow = 0.5  # ± days
 regionSize = 5 / 60  # search box ± in arcmin
 
 #  verbose setting for output monitoring and debug
-verbose = 'minimal'  # use 'full' / 'minimal' / False
+verbose = 'full'  # use 'full' / 'minimal' / False
+
+# setup logging for LCExtract
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+LClog = logging.getLogger(__name__)
+LClog.setLevel(logging.DEBUG)  # DEBUG / INFO / WARNING / ERROR / CRITICAL
+
+formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(module)s: %(message)s')
+file_handler = logging.FileHandler('logs/LCExtract.log')
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+LClog.addHandler(file_handler)
+LClog.addHandler(stream_handler)
