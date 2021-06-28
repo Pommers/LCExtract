@@ -117,7 +117,7 @@ def getUserObject():
             except u.UnitsError:
                 print('Units error occurred. Please try again.')
             else:
-                print(f'Object at {c.to_string("hmsdms")} found.')
+                print(f'Object coordinates {c.to_string("hmsdms")} resolved.')
                 tempName = 'Object in ' + c.get_constellation()
                 break
     print()
