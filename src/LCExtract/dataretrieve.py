@@ -22,10 +22,13 @@ import re
 
 import numpy as np
 import pandas as pd
+from astropy.table import Table
+
 # Set up matplotlib
 from matplotlib import pyplot as plt
 # from matplotlib import artist
 from scipy import stats
+# from johansen import Johansen
 
 from LCExtract import config
 from LCExtract.config import LClog
@@ -110,8 +113,31 @@ class AstroObjectClass:
             ax.legend()
 
         plotName = self.objectName if self.objectName != '' else datetime.datetime.now().strftime("%y%m%d%H%M%S")
+        # plot has been created - now save (as PNG) and output to screen (if required)
         plt.savefig(f'data/plots/{plotName}_{filters}.png')
-        plt.show()
+        if config.plotToScreen:
+            plt.show()
+
+
+def addColumns(r, filters):
+    r.add_column(False, name='ZTFObject')
+    r.add_column(False, name='ZTFOutliers')
+    subSetFilters = ''.join(sorted(set(config.ztf.filters) & set(filters), key=config.ztf.filters.index))
+    for f in subSetFilters:
+        r.add_column(0, name=f'ZTF{f}oid')
+        r.add_column('', name=f'ZTF{f}filterID')
+        r.add_column(0, name=f'ZTF{f}Samples')
+        r.add_column(0.0, name=f'ZTF{f}MAD')
+        r.add_column(0.0, name=f'ZTF{f}SD')
+        r.add_column(0.0, name=f'ZTF{f}Median')
+        r.add_column(0.0, name=f'ZTF{f}Mean')
+        r.add_column(False, name=f'Stat{f}Included')
+        r.add_column(0.0, name=f'ZTF{f}RefMag')
+        r.add_column(0.0, name=f'ZTF{f}deltaTMin')
+        r.add_column(0.0, name=f'ZTF{f}deltaTMean')
+        r.add_column(0.0, name=f'ZTF{f}deltaTMedian')
+        r.add_column(0.0, name=f'ZTF{f}deltaTMax')
+        r.add_column(0.0, name=f'ZTF{f}deltaTSD')
 
 
 class AODataClass:
@@ -133,6 +159,12 @@ class AODataClass:
         self.filename = ''
         self.dataStatus = False
         self.sigma3 = {'g': 0.0, 'r': 0.0}
+        self.timeDiff = {}
+        self.timeMin = {}
+        self.timeMax = {}
+        self.timeMean = {}
+        self.timeMed = {}
+        self.timeStd = {}
 
     def getLightCurveData(self, radius=None, return_type='VOTABLE'):
         """
@@ -197,18 +229,17 @@ class AODataClass:
     def setRefMag(self, fileCheck=False):
         # TODO must check in oidlist file if fileCheck is True and save refmag to file
 
-        oidList = []
-        for f in self.filtersReturned:
-            # oidList.append(str(self.id[f]))
+        # oidList = []
+        if self.archive.code == 'z':
+            for f in self.filtersReturned:
+                # oidList.append(str(self.id[f]))
 
-            response = getOIDZTFinfo(str(self.id[f]))
-            if len(response):
-                oidData = response
-                # oidRow = oidData[(oidData['oid'] == self.id[f]) & (oidData['filtercode'] == f'z{f}')]
-                self.aRefmag[f] = float(oidData[(oidData['oid'] == self.id[f]) &
-                                                (oidData['filtercode'] == f'z{f}')]['refmag'].values)
-
-        pass
+                response = getOIDZTFinfo(str(self.id[f]))
+                if len(response):
+                    oidData = response
+                    # oidRow = oidData[(oidData['oid'] == self.id[f]) & (oidData['filtercode'] == f'z{f}')]
+                    self.aRefmag[f] = float(oidData[(oidData['oid'] == self.id[f]) &
+                                                    (oidData['filtercode'] == f'z{f}')]['refmag'].values)
 
     def setSamples(self, col_name, group_col):
         self.samples = self.table.groupby(group_col)[col_name].count()
@@ -268,6 +299,20 @@ class AODataClass:
             if self.archive.name == 'ZTF' and f in self.filtersReturned:
                 self.sigma3[f] = threeSigma(self.archive, f, self.median[f])
 
+    def analyseTimings(self):
+        for f in self.filtersReturned:
+            filterData = self.table[self.table[self.archive.filterField]==f].copy()
+            filterDataSort = filterData.sort_values(by=[self.archive.timeField])
+            timeDiff = filterDataSort[self.archive.timeField].diff()
+            self.timeMin[f] = np.nanmin(timeDiff)
+            self.timeMax[f] = np.nanmax(timeDiff)
+            self.timeMean[f] = np.nanmean(timeDiff)
+            self.timeMed[f] = np.nanmedian(timeDiff)
+            self.timeStd[f] = np.nanstd(timeDiff)
+
+    def cadenceMin(self, col_name, group_col):
+        self.timeMin = self.table.groupby(group_col)[col_name].min()
+
     def addColourColumn(self, series):
         """Method to add a colour column
 
@@ -292,6 +337,7 @@ class AODataClass:
         self.setMedian(self.archive.magField, self.archive.filterField)
         self.setMean(self.archive.magField, self.archive.filterField)
         self.set3Sigma()
+        self.analyseTimings()
 
     def prepRawData(self):
         self.set_filtersReturned()
@@ -422,6 +468,11 @@ class AODataClass:
         filterLineOut('Standard Deviation', self.SD)
         filterLineOut('Median', self.median, 2)
         filterLineOut('Mean', self.mean, 2)
+        filterLineOut('Sample interval Min.', self.timeMin)
+        filterLineOut('Sample interval Mean', self.timeMean, 2)
+        filterLineOut('Sample interval Median', self.timeMed, 2)
+        filterLineOut('Sample interval Max.', self.timeMax, 1)
+        filterLineOut('Sample interval Std Dev.', self.timeStd, 2)
         print()
 
     def objectStatSave(self, r):
@@ -441,6 +492,11 @@ class AODataClass:
             r[f'ZTF{f}Mean'] = self.mean[f]
             r[f'Stat{f}Included'] = True
             r[f'ZTF{f}RefMag'] = self.aRefmag[f]
+            r[f'ZTF{f}deltaTMin'] = self.timeMin[f]
+            r[f'ZTF{f}deltaTMean'] = self.timeMean[f]
+            r[f'ZTF{f}deltaTMedian'] = self.timeMed[f]
+            r[f'ZTF{f}deltaTMax'] = self.timeMax[f]
+            r[f'ZTF{f}deltaTSD'] = self.timeStd[f]
 
     def outliersExist(self, a, threshold):
         """Check if archive data has samples outside 3 sigma range
@@ -492,3 +548,8 @@ class AODataClass:
                             LClog.info(f'Outlier count ({outlierCount}) for {self.AO.objectName} {f} filter, '
                                        f'over count percentage ({threshold["countPC"]}).')
                     return False
+
+    def johansenTest(self, a):
+
+        pass
+
