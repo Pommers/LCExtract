@@ -74,7 +74,7 @@ class OIDListFile:
 oidListFile = OIDListFile()
 
 
-def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters=None):
+def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters={}):
     """Zwicky Transient facility light curve data retrieval
 
     IRSA provides access to the ZTF collection of lightcurve data through an application program interface (API).
@@ -96,13 +96,16 @@ def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters=None):
     """
     filterStr = getFilterStr(config.ztf.filters)  # limit filters (requested) to ZTF subset
 
+    if not filterStr:  # Check table actually has data in it (i.e. possible no lightcurve data exists)
+        return config.badResponse
+
     status = True
 
     ra = coordinates.ra_str() + delim
     dec = coordinates.dec_str() + delim
     radius_str = to_string(radius, 5)
-    if column_filters is None:
-        column_filters = {}
+    # if column_filters is None:
+    #     column_filters = {}
 
     queryPart = "nph_light_curves"
     pos = "POS=CIRCLE" + delim + ra + dec + radius_str
@@ -112,7 +115,7 @@ def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters=None):
 
     url_payload = f"{config.ztf.URL}{queryPart}?{pos}&{bandName}&{form}&{badCatFlagsMask}"
 
-    if column_filters is not None:
+    if len(column_filters):
         url_payload += '&' + '&'.join(column_filters)
 
     # establish http connection
@@ -179,8 +182,11 @@ def getOIDZTFinfo(oid: str):
         oidSQL = 'oid=' + str(oid)
         query = f"SELECT * FROM ztf_objects_dr5 WHERE {oidSQL} ORDER BY oid"
         queryReturn = ZTFObjectQuery(query)
-        oidListFile.add(queryReturn)
-        response = pd.DataFrame(queryReturn)
+        if len(queryReturn):
+            oidListFile.add(queryReturn)
+            response = pd.DataFrame(queryReturn)
+        else:
+            response = None
         # response.append(response)
 
     return response
