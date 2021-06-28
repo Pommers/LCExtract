@@ -19,7 +19,7 @@ Archive = collections.namedtuple('Archive', 'name code filters URL magField magE
 # TODO check magnitude error field for PTF and Pan-STARRS (not yet configured)
 panstarrs = Archive(name='Pan-STARRS', code='p', filters='grizy',
                     URL='https://catalogs.mast.stsci.edu/api/v0.1/panstarrs',
-                    magField='psfMag', magErr='magerr', timeField='obsTime',
+                    magField='psfMag', magErr='psfMagErr', timeField='obsTime',
                     filterField='filtercode', oidField='objID', marker='*')
 ztf = Archive(name='ZTF', code='z', filters='gri',
               URL='https://irsa.ipac.caltech.edu/cgi-bin/ZTF/',
@@ -27,15 +27,15 @@ ztf = Archive(name='ZTF', code='z', filters='gri',
               filterField='filterID', oidField='oid', marker='.')
 ptf = Archive(name='PTF', code='r', filters='gR',
               URL='https://irsa.ipac.caltech.edu/cgi-bin/Gator/',
-              magField='mag_autocorr', magErr='magerr', timeField='obsmjd',
+              magField='mag_autocorr', magErr='magerr_auto', timeField='obsmjd',
               filterField='filterID', oidField='oid', marker='+')
 
 archives = {'p': panstarrs, 'z': ztf, 'r': ptf}
 archAvail = "".join(list(archives.keys()))
 
 # Global variables
-coneRadius = 1 / 3600  # 1 arcseconds
-defaultFileName = 'data/test_single.csv'
+coneRadius = 2 / 3600  # 2 arcseconds
+defaultFileName = 'data/test_100.csv'
 badResponse = (False, '')
 
 # filter management
@@ -62,6 +62,7 @@ medSD_c = {'g': (5.52593602e-07, -7.84244669e-05,  4.84231576e-03, -1.69929569e-
 
 # set threshold values for determining detections of interest in lightcurves
 threshold = {'countMin': 1, 'countMax': 30, 'countPC': 0.1, 'magScalar': 1.0}
+checkOutliers = False
 
 # SDSS configuration
 sampleSize = 20
@@ -71,6 +72,9 @@ regionSize = 5 / 60  # search box ± in arcmin
 
 #  verbose setting for output monitoring and debug
 verbose = 'full'  # use 'full' / 'minimal' / False
+
+# Plot output to screen
+plotToScreen = False
 
 # setup logging for LCExtract
 if not os.path.exists('logs'):
