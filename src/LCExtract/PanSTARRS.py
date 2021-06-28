@@ -367,5 +367,6 @@ def getLightCurveDataPanSTARRS(coords: CoordClass, radius, return_type, column_f
     else:
         dTab.remove_rows(dTab['psfFlux'] == 0)  # remove any rows where flux is zero
         dTab['psfMag'] = -2.5 * np.log10(dTab['psfFlux']) + 8.90  # convert flux (in Janskys) to magnitude
+        dTab['psfMagErr'] = 0.0  # -2.5 * np.log10(dTab['psfFluxErr']) + 8.90  # convert flux error (in Janskys) to magnitude
 
     return status, dTab.to_pandas()
