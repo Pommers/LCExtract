@@ -1,5 +1,6 @@
 import sys
 
+from LCExtract.images import image
 from src.SDSSRefs.histogram import histogram
 from src.SDSSRefs.resample import resample
 
@@ -13,7 +14,8 @@ def help():
           'lc       : To execute the lightcurve extraction application.\n'
           'sdss     : Perform SDSS reference calibration using config parameters\n'
           'resample : Parse and reset stats from the LC files for multiple filters\n'
-          'hist     : Histogram data parse')
+          'hist     : Histogram data parse'
+          'image    : Get image(s) of objects from ZTF')
 
 
 if __name__ == '__main__':
@@ -28,6 +30,8 @@ if __name__ == '__main__':
             controller()
         elif execute == 'hist':
             histogram()
+        elif execute == 'image':
+            image()
         elif execute == 'h':
             help()
     exit(0)

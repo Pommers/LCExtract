@@ -144,21 +144,22 @@ class SDSSdata:
         self.usedSamples = {'g': 0, 'r': 0}
         self.meanSamplesLC = {'g': 0.0, 'r': 0.0}
         self.ZTFrefMag = {'g': 0.0, 'r': 0.0}
+        self.med16pcDiff = {'g': 0.0, 'r': 0.0}
         self.SDSSrefMag = {'g': 0.0, 'r': 0.0}
         self.filename = config.SDSSDataFilename
 
-    def addColumns(self):
-        self.samples.add_column(False, name='ZTFObject')
-        for f in 'gr':
-            self.samples.add_column(0, name=f'ZTF{f}oid')
-            self.samples.add_column('', name=f'ZTF{f}filterID')
-            self.samples.add_column(0, name=f'ZTF{f}Samples')
-            self.samples.add_column(0.0, name=f'ZTF{f}MAD')
-            self.samples.add_column(0.0, name=f'ZTF{f}SD')
-            self.samples.add_column(0.0, name=f'ZTF{f}Median')
-            self.samples.add_column(0.0, name=f'ZTF{f}Mean')
-            self.samples.add_column(False, name=f'Stat{f}Included')
-            self.samples.add_column(0.0, name=f'ZTF{f}RefMag')
+    # def addColumns(self):
+    #     self.samples.add_column(False, name='ZTFObject')
+    #     for f in 'gr':
+    #         self.samples.add_column(0, name=f'ZTF{f}oid')
+    #         self.samples.add_column('', name=f'ZTF{f}filterID')
+    #         self.samples.add_column(0, name=f'ZTF{f}Samples')
+    #         self.samples.add_column(0.0, name=f'ZTF{f}MAD')
+    #         self.samples.add_column(0.0, name=f'ZTF{f}SD')
+    #         self.samples.add_column(0.0, name=f'ZTF{f}Median')
+    #         self.samples.add_column(0.0, name=f'ZTF{f}Mean')
+    #         self.samples.add_column(False, name=f'Stat{f}Included')
+    #         self.samples.add_column(0.0, name=f'ZTF{f}RefMag')
 
     def getSamples(self):
         sampleCount = config.startingSampleSize
@@ -201,10 +202,14 @@ class SDSSdata:
 
         self.totalSamples[f] = len(p['ZTFObject'])
 
+        p = p[(p[f'Stat{f}Included'] == True)]
+
         self.usedSamples[f] = len(p[(p[f'ZTF{f}Samples'] != 0)])
         q = p.to_pandas()
         if self.totalSamples[f] and self.usedSamples[f] and not np.all(np.isnan(q[f'ZTF{f}SD'])):
             self._setDetailStats(p, f)
+            self.med16pcDiff[f] = np.nanmedian(p[f'ZTF{f}SD']) - np.nanpercentile(p[f'ZTF{f}SD'], 16)
+            pass
 
     def optimiseStats(self, f):
         if self.usedSamples[f]:
@@ -228,7 +233,7 @@ class SDSSdata:
 
     def getStats(self, f):
         statsList = [self.mag, f, self.totalSamples[f], self.medianOfSD[f], self.SDofSD[f], self.meanOfSD[f],
-                     self.usedSamples[f], self.meanSamplesLC[f]]
+                     self.usedSamples[f], self.meanSamplesLC[f], self.med16pcDiff[f]]
         return statsList
 
     def plotSkyObjects(self, sky: Sky, f):

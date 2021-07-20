@@ -3,6 +3,7 @@ import os
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
+import astropy.time
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -10,6 +11,7 @@ import pyvo
 from astropy.io.votable import parse
 from astropy.table import Table
 from astropy.io import ascii
+from astropy.io import fits
 
 from LCExtract import config
 from LCExtract.coord import CoordClass, to_string
@@ -74,7 +76,7 @@ class OIDListFile:
 oidListFile = OIDListFile()
 
 
-def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters={}):
+def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters=None):
     """Zwicky Transient facility light curve data retrieval
 
     IRSA provides access to the ZTF collection of lightcurve data through an application program interface (API).
@@ -115,7 +117,7 @@ def getLightCurveDataZTF(coordinates: CoordClass, radius, column_filters={}):
 
     url_payload = f"{config.ztf.URL}{queryPart}?{pos}&{bandName}&{form}&{badCatFlagsMask}"
 
-    if len(column_filters):
+    if column_filters is not None:
         url_payload += '&' + '&'.join(column_filters)
 
     # establish http connection
@@ -227,3 +229,49 @@ def ZTFObjectQuery(query):
 
 def getPosSDSSMedian(pos: CoordClass):
     pass
+
+
+def getZTFImage(mjd, filefracday, field, filtercode, ccdid, quadrant, pos, size=None):
+    # get single image
+    if size is None:
+        size = [5, 1, 0.1]
+    hdul = []
+    baseURL = 'https://irsa.ipac.caltech.edu/ibe/data/ztf/products/sci/'
+    dateTime = astropy.time.Time(mjd, format='mjd')
+    fracdate = str(filefracday)[-6:]
+    imgtypecode = 'o'
+    for i in range(len(size)):
+        getURL = baseURL + dateTime.strftime('%Y/%m%d/') + fracdate + '/ztf_' + str(filefracday) \
+                 + '_' + f'{field:0>6d}' + '_' + filtercode \
+                 + '_' + f'c{int(ccdid, base=16):0>2d}' + '_' + imgtypecode \
+                 + '_' + f'q{int(quadrant, base=16):0>1d}' + '_sciimg' + '.fits' \
+                 + '?' + f'center={pos.ra_str()},{pos.dec_str()}&size={str(size[i])}arcmin&gzip=false'
+        hdul.append(fits.open(getURL))
+
+        # if hdul.inf != 200:  # Ensure good response is received back from IRSA
+        #     return config.badResponse
+
+        config.LClog.debug(hdul[i].info())
+    return hdul, size
+
+
+def getZTFRefImage(field, filtercode, ccdid, quadrant, pos, size=None):
+    # Get reference image
+    if size is None:
+        size = [5, 1, 0.1]
+    hdul = []
+    baseURL = 'https://irsa.ipac.caltech.edu/ibe/data/ztf/products/ref/'
+    paddedfield = f'{field:0>6d}'
+    fieldprefix = paddedfield[:3]
+    paddedccdid = f'{int(ccdid, base=16):0>2d}'
+    qid = f'{int(quadrant, base=16):0>1d}'
+
+    for i in range(len(size)):
+        getURL = baseURL + fieldprefix + '/field' + paddedfield + '/' + filtercode \
+                 + '/ccd' + paddedccdid + '/q' + qid \
+                 + '/ztf_' + paddedfield + '_' + filtercode + '_c' + paddedccdid + '_q' + qid + '_refimg' + '.fits' \
+                 + '?' + f'center={pos.ra_str()},{pos.dec_str()}&size={str(size[i])}arcmin&gzip=false'
+        hdul.append(fits.open(getURL))
+
+        config.LClog.debug(hdul[i].info())
+    return hdul, size

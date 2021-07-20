@@ -63,5 +63,6 @@ def getLightCurveDataPTF(coordinates: CoordClass, radius,
     fi = pd.Series({1: "g", 2: "R"})  # map filter ID from ZTF code (used as key in output)
     tablePD['filterID'] = tablePD['fid'].map(fi)
     tablePD = tablePD.loc[tablePD['filterID'].isin(list(config.filterSelection))]
+    tablePD = tablePD[(tablePD['absphotzp'] != 99.99)]
 
     return status, tablePD

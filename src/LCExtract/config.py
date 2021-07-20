@@ -35,7 +35,7 @@ archAvail = "".join(list(archives.keys()))
 
 # Global variables
 coneRadius = 2 / 3600  # 2 arcseconds
-defaultFileName = 'data/test_100.csv'
+defaultFileName = 'data/test_new.csv'
 badResponse = (False, '')
 
 # filter management
@@ -74,7 +74,7 @@ regionSize = 5 / 60  # search box ± in arcmin
 verbose = 'full'  # use 'full' / 'minimal' / False
 
 # Plot output to screen
-plotToScreen = False
+plotToScreen = True
 
 # setup logging for LCExtract
 if not os.path.exists('logs'):
@@ -92,3 +92,6 @@ stream_handler.setFormatter(formatter)
 
 LClog.addHandler(file_handler)
 LClog.addHandler(stream_handler)
+
+# image sizes
+imgSize = [5, 1, 0.2]  # arcminutes

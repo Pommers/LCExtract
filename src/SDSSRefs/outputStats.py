@@ -48,8 +48,9 @@ class Stats:
                      'MeanOfSD',
                      'UsedSamplesMag',
                      'MeanSamplesLC',
+                     'med_16pc_diff'
                      )
-        self.stats = Table(names=statsCols, dtype=(float, str, int, float, float, float, int, float))
+        self.stats = Table(names=statsCols, dtype=(float, str, int, float, float, float, int, float, float))
 
     def plot(self):
         if not os.path.isdir(config.plotsPath):

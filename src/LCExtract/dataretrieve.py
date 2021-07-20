@@ -29,13 +29,16 @@ from matplotlib import pyplot as plt
 # from matplotlib import artist
 from scipy import stats
 # from johansen import Johansen
+from astropy.wcs import WCS
+from astropy.io import fits
+from astropy import time as astroTime
 
 from LCExtract import config
 from LCExtract.config import LClog
 from LCExtract.coord import CoordClass
 from LCExtract.filter import filterLineOut
 from LCExtract.utilities import threeSigma
-from LCExtract.ztf import getLightCurveDataZTF, getOIDZTFinfo, OIDListFile
+from LCExtract.ztf import getLightCurveDataZTF, getOIDZTFinfo, OIDListFile, getZTFImage, getZTFRefImage
 from LCExtract.ptf import getLightCurveDataPTF
 from LCExtract.PanSTARRS import getLightCurveDataPanSTARRS
 
@@ -83,14 +86,17 @@ class AstroObjectClass:
             return ''
 
     def preparePlot(self, filters):
-        fig, ax = plt.subplots(nrows=len(filters), ncols=1, sharex='all', sharey='none', figsize=(8, 11), dpi=300)
+        fig, ax = plt.subplots(num=1, nrows=len(filters), ncols=1, sharex='all', sharey='none', figsize=(8, 11),
+                               dpi=300)
         fig.suptitle(f'{self.objectName}', fontsize=16)
 
         return fig, ax
 
     def finalisePlot(self, fig, ax, filters):
         if len(filters) > 1:
-            ax[len(filters) - 1].set_xlabel('Time [MJD]', fontsize=14)
+            ax[len(filters) - 1].set_xlabel('Date', fontsize=14)
+            ax[0].xaxis.set_major_locator(plt.MaxNLocator(6))
+
             ax[0].set_title(f'{self.shortDesc}', fontsize=12)
             for c in ax:
                 r = c.get_subplotspec().rowspan.start
@@ -102,7 +108,9 @@ class AstroObjectClass:
                 c.set_ylim(reversed(c.set_ylim()))  # flip the y-axis
                 c.legend()
         else:
-            ax.set_xlabel('Time [MJD]', fontsize=12)
+            ax.set_xlabel('Date', fontsize=12)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(6))
+
             ax.set_ylabel(f'{filters}[Mag]', fontsize=12)
             ax.set_title(f'{self.shortDesc}', fontsize=12)
             ymin, ymax = ax.get_ylim()
@@ -117,6 +125,7 @@ class AstroObjectClass:
         plt.savefig(f'data/plots/{plotName}_{filters}.png')
         if config.plotToScreen:
             plt.show()
+        plt.close(fig=1)
 
 
 def addColumns(r, filters):
@@ -133,6 +142,7 @@ def addColumns(r, filters):
         r.add_column(0.0, name=f'ZTF{f}Mean')
         r.add_column(False, name=f'Stat{f}Included')
         r.add_column(0.0, name=f'ZTF{f}RefMag')
+        r.add_column(0.0, name=f'ZTF{f}med_16pc_diff')
         r.add_column(0.0, name=f'ZTF{f}deltaTMin')
         r.add_column(0.0, name=f'ZTF{f}deltaTMean')
         r.add_column(0.0, name=f'ZTF{f}deltaTMedian')
@@ -155,6 +165,7 @@ class AODataClass:
         self.filtersReturned = {}  # df of filter id based on data returned
         self.id = {}
         self.aRefmag = {}
+        self.altSD = {}
         self.sdssRefmag = {}
         self.filename = ''
         self.dataStatus = False
@@ -282,6 +293,13 @@ class AODataClass:
         """
         self.median = self.table.groupby(group_col)[col_name].median()
 
+    def setAltSD(self, col_name, group_col):
+        series = self.table.groupby(group_col)[col_name]
+        for name, group in series:
+            self.altSD[name] = self.median[name] - np.nanpercentile(self.table[
+                                                                        (self.table[group_col] == name)
+                                                                    ][col_name], 16)
+
     def setMean(self, col_name, group_col):
         """Method to set the median of data
 
@@ -301,14 +319,21 @@ class AODataClass:
 
     def analyseTimings(self):
         for f in self.filtersReturned:
-            filterData = self.table[self.table[self.archive.filterField]==f].copy()
+            filterData = self.table[self.table[self.archive.filterField] == f].copy()
             filterDataSort = filterData.sort_values(by=[self.archive.timeField])
             timeDiff = filterDataSort[self.archive.timeField].diff()
-            self.timeMin[f] = np.nanmin(timeDiff)
-            self.timeMax[f] = np.nanmax(timeDiff)
-            self.timeMean[f] = np.nanmean(timeDiff)
-            self.timeMed[f] = np.nanmedian(timeDiff)
-            self.timeStd[f] = np.nanstd(timeDiff)
+            if not np.all(np.isnan(timeDiff)):
+                self.timeMin[f] = np.nanmin(timeDiff)
+                self.timeMax[f] = np.nanmax(timeDiff)
+                self.timeMean[f] = np.nanmean(timeDiff)
+                self.timeMed[f] = np.nanmedian(timeDiff)
+                self.timeStd[f] = np.nanstd(timeDiff)
+            else:
+                self.timeMin[f] = 0.0
+                self.timeMax[f] = 0.0
+                self.timeMean[f] = 0.0
+                self.timeMed[f] = 0.0
+                self.timeStd[f] = 0.0
 
     def cadenceMin(self, col_name, group_col):
         self.timeMin = self.table.groupby(group_col)[col_name].min()
@@ -325,6 +350,9 @@ class AODataClass:
         c = pd.Series({"g": "green", "r": "red", "i": "indigo", "z": "blue", "y": "black", "R": "orange"})
         self.table['colour'] = self.table[series].map(c)
 
+    def addDateColumn(self, tField):
+        self.table['dateTime'] = astroTime.Time(self.table[tField], format='mjd').to_datetime()
+
     def _getStats(self):
         """Method to set statistics
 
@@ -336,6 +364,7 @@ class AODataClass:
         self.setSD(self.archive.magField, self.archive.filterField)
         self.setMedian(self.archive.magField, self.archive.filterField)
         self.setMean(self.archive.magField, self.archive.filterField)
+        self.setAltSD(self.archive.magField, self.archive.filterField)
         self.set3Sigma()
         self.analyseTimings()
 
@@ -400,19 +429,20 @@ class AODataClass:
         """
         if self.dataStatus:  # TODO Need to sort this out for different catalogs
             self.addColourColumn(self.archive.filterField)
+            self.addDateColumn(self.archive.timeField)
 
             for i in filters:
                 if len(filters) > 1:
                     filterTable = self.table[self.table[self.archive.filterField] == i]
                     if len(filterTable):
-                        ax[filters.index(i)].errorbar(filterTable[archive.timeField],
+                        ax[filters.index(i)].errorbar(filterTable['dateTime'],
                                                       filterTable[archive.magField],
                                                       filterTable[archive.magErr],
                                                       fmt='none',
                                                       ecolor='grey',
                                                       elinewidth=0.7,
                                                       label=f'{i} error ({archive.name})')
-                        ax[filters.index(i)].scatter(filterTable[archive.timeField],
+                        ax[filters.index(i)].scatter(filterTable['dateTime'],
                                                      filterTable[archive.magField],
                                                      c=filterTable['colour'],
                                                      marker=archive.marker,
@@ -420,7 +450,7 @@ class AODataClass:
                         self._plotLines(archive, ax[filters.index(i)], i)
 
                 else:
-                    ax.scatter(self.table[archive.timeField], self.table[archive.magField],
+                    ax.scatter(self.table['dateTime'], self.table[archive.magField],
                                c=self.table['colour'], marker=archive.marker,
                                label=f'{archive.name} {filters} filter')
                     self._plotLines(archive, ax, i)
@@ -438,10 +468,10 @@ class AODataClass:
         :param fs: filter being plotted
         :type fs: str
         """
-        ax.axhline(y=self.median[fs],
-                   color='black', linestyle='-', label=f'{archive.name} {fs} filter median')
 
         if archive.name == 'ZTF' and fs in 'gr':
+            ax.axhline(y=self.median[fs],
+                       color='black', linestyle='-', label=f'{archive.name} {fs} filter median')
             self.sigma3 = threeSigma(self.archive, fs, self.median[fs])
             upBound = self.median[fs] + self.sigma3
             lowBound = self.median[fs] - self.sigma3
@@ -449,7 +479,7 @@ class AODataClass:
             ax.axhline(y=upBound, color='grey', linestyle='--', alpha=0.3,
                        label=f'{archive.name} {fs} filter, 3{chr(963)}')
             ax.axhline(y=lowBound, color='grey', linestyle='--', alpha=0.3)
-            ax.fill_between(self.table.sort_values(by=[archive.timeField])[archive.timeField],
+            ax.fill_between(self.table.sort_values(by=['dateTime'])['dateTime'],
                             lowBound, upBound, alpha=0.1)
 
     def objectOutput(self):
@@ -492,6 +522,7 @@ class AODataClass:
             r[f'ZTF{f}Mean'] = self.mean[f]
             r[f'Stat{f}Included'] = True
             r[f'ZTF{f}RefMag'] = self.aRefmag[f]
+            r[f'ZTF{f}med_16pc_diff'] = self.altSD[f]
             r[f'ZTF{f}deltaTMin'] = self.timeMin[f]
             r[f'ZTF{f}deltaTMean'] = self.timeMean[f]
             r[f'ZTF{f}deltaTMedian'] = self.timeMed[f]
@@ -513,43 +544,78 @@ class AODataClass:
         :param threshold: dict from config
         :type threshold: dict
         """
-        if a.name == 'ZTF':
-            for f in self.filtersReturned:
-                upLim = self.median[f] + self.sigma3[f]
-                loLim = self.median[f] - self.sigma3[f]
+        response = {}
+        self.table['outlier'] = 'inside'
+        for f in self.filtersReturned:
+            if f == 'i':
+                response[f] = False
+                continue
+            upLim = self.median[f] + self.sigma3[f]
+            loLim = self.median[f] - self.sigma3[f]
 
-                # r = p[
-                #     (p['ZTFSD'] > (self.meanOfSD - config.sigma * self.SDofSD)) &
-                #     (p['ZTFSD'] < (self.meanOfSD + config.sigma * self.SDofSD))
-                #     ]
+            # r = p[
+            #     (p['ZTFSD'] > (self.meanOfSD - config.sigma * self.SDofSD)) &
+            #     (p['ZTFSD'] < (self.meanOfSD + config.sigma * self.SDofSD))
+            #     ]
 
-                # self.table['outlier'] = 'inside'
+            self.table['outlier'][
+                (self.table[a.filterField] == f) &
+                ((self.table[a.magField] - self.table[a.magErr]) >= upLim)] = 'high'
+            self.table['outlier'][
+                (self.table[a.filterField] == f) &
+                ((self.table[a.magField] + self.table[a.magErr]) <= loLim)] = 'low'
+            # self.table['outlier'] = np.where(
+            #     ((self.table[a.filterField] == f) &
+            #      ((self.table[a.magField] - self.table[a.magErr]) >= upLim)), 'high', np.where(
+            #         ((self.table[a.filterField] == f) &
+            #          ((self.table[a.magField] + self.table[a.magErr]) <= loLim)), 'low', 'inside'))
 
-                self.table['outlier'] = np.where(
-                    ((self.table[a.filterField] == f) &
-                     ((self.table[a.magField] - self.table[a.magErr]) >= upLim)), 'high', np.where(
-                        ((self.table[a.filterField] == f) &
-                         ((self.table[a.magField] + self.table[a.magErr]) <= loLim)), 'low', 'inside'))
+            outlierCount = len(self.table[(self.table[a.filterField] == f) & (self.table['outlier'] != 'inside')])
 
-                outlierCount = len(self.table[(self.table['outlier'] != 'inside')])
-
-                # check for outliers count between min and max (inclusive) values - initially 0 to 30
-                # and also check count is less than a percentage of total samples - initially 10%
-                withinCountThreshold = threshold['countMin'] <= outlierCount <= threshold['countMax']
-                underTotalCountPC = outlierCount <= int(self.samples[f] * threshold['countPC'])
-                if withinCountThreshold and underTotalCountPC:
-                    return True
+            # check for outliers count between min and max (inclusive) values - initially 0 to 30
+            # and also check count is less than a percentage of total samples - initially 10%
+            withinCountThreshold = threshold['countMin'] <= outlierCount <= threshold['countMax']
+            underTotalCountPC = outlierCount <= int(self.samples[f] * threshold['countPC'])
+            if withinCountThreshold and underTotalCountPC:
+                response[f] = True
+            else:
+                if not withinCountThreshold:
+                    LClog.info(f'Outlier count ({outlierCount}) for {self.AO.objectName} {f} filter, '
+                               f'outside count threshold ({threshold["countMin"]} - {threshold["countMax"]}).')
                 else:
-                    if config.verbose == 'full':
-                        if not withinCountThreshold:
-                            LClog.info(f'Outlier count ({outlierCount}) for {self.AO.objectName} {f} filter, '
-                                       f'outside count threshold ({threshold["countMin"]} - {threshold["countMax"]}).')
-                        else:
-                            LClog.info(f'Outlier count ({outlierCount}) for {self.AO.objectName} {f} filter, '
-                                       f'over count percentage ({threshold["countPC"]}).')
-                    return False
+                    LClog.info(f'Outlier count ({outlierCount}) for {self.AO.objectName} {f} filter, '
+                               f'over count percentage ({threshold["countPC"]}).')
+                response[f] = False
+        return response
 
     def johansenTest(self, a):
-
         pass
 
+    def getMedianRow(self, f):
+        a = self.archive
+        df = pd.DataFrame(self.table.loc[np.where(self.table['filterID'] == f)])
+        df['medDiff'] = abs(df[a.magField] - self.median[f])
+        row = df[df['medDiff'] == min(df['medDiff'])].index.item()
+        return row
+
+    def getRefImage(self, f):
+        oid = self.id[f]
+        # get first row for this OID and extract field, etc.
+        df = self.table[(self.table['oid'] == oid)]
+        field = df.iloc[0]['field']
+        filtercode = df.iloc[0]['filtercode']
+        ccdid = df.iloc[0]['ccdid']
+        quadrant = df.iloc[0]['qid']
+        response = getZTFRefImage(field, filtercode, ccdid, quadrant, self.AO.pos, config.imgSize)
+        return response
+
+    def getImages(self, row, sizes: list):
+        mjd = self.table.loc[row]['mjd']
+        filefracday = self.table.loc[row]['filefracday']
+        field = self.table.loc[row]['field']
+        filtercode = self.table.loc[row]['filtercode']
+        ccdid = self.table.loc[row]['ccdid']
+        quadrant = self.table.loc[row]['qid']
+        response = getZTFImage(mjd, filefracday, field, filtercode, ccdid, quadrant, self.AO.pos, sizes)
+
+        return response

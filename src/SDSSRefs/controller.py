@@ -13,7 +13,7 @@ intrinsic scatter / error for different magnitudes.
 from numpy import arange
 
 from LCExtract import config as LCconfig
-from LCExtract.dataretrieve import AstroObjectClass, AODataClass
+from LCExtract.dataretrieve import AstroObjectClass, AODataClass, addColumns
 from SDSSRefs import config
 from SDSSRefs.config import SDSSlog
 from SDSSRefs.SDSS import SDSSdata, NoLCList, Sky
@@ -35,7 +35,7 @@ def controller():
             status, objectsList = sdssDataHolder.getSamples()
             if status:
                 SDSSlog.info(f'Sample completed successfully.')
-                sdssDataHolder.addColumns()
+                addColumns(sdssDataHolder.samples, LCconfig.filterSelection)
                 sdssDataHolder.createFile(overwrite=True)
                 noLClist = NoLCList()
                 for i in objectsList:
