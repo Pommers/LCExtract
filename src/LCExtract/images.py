@@ -17,10 +17,17 @@ Summary
 """
 
 from datetime import datetime
+import copy
+
+import numpy as np
+from astropy.visualization import ImageNormalize, SqrtStretch
 from matplotlib import pyplot as plt, gridspec
 from astropy.wcs import WCS
+from astropy.stats import SigmaClip, sigma_clipped_stats
+from astropy.visualization.mpl_normalize import ImageNormalize
 from astropy.io import fits
 from astropy.utils.data import get_pkg_data_filename
+from photutils import Background2D, MedianBackground
 
 # Self-authored package modules for inclusion
 from LCExtract import config
@@ -50,7 +57,9 @@ def showBaseImages(imageDataList, title, subtitle):
     for r, hduR in enumerate(imageDataList):
         for c, hd in enumerate(hduR[0]):
             size = hduR[1][c]
-            imageThumb(fig, r, c, hd, spec, f'{subtitle[r]} ({size} arcmin)')
+            imageThumb(fig, r, c, hd, spec, f"{subtitle[r]} ({size}')")
+            if c == 1:  # if this is central image...
+                estimateBackground(hd, subtitle[r], out=True)
 
     fig.tight_layout(h_pad=4, w_pad=6, rect=(0.07, 0.04, 0.98, 0.99))
     fig.savefig(f'data/plots/{title}_ref_img.png')
@@ -60,7 +69,7 @@ def showBaseImages(imageDataList, title, subtitle):
 
 
 def showOutlierImages(hduThumbs, title, subtitle):
-    rows = int((len(hduThumbs)-1)/3)+1
+    rows = int((len(hduThumbs) - 1) / 3) + 1
     height = 3.5 * rows + 1
 
     fig = plt.figure(num=3, figsize=(11, height), dpi=300)
@@ -69,9 +78,9 @@ def showOutlierImages(hduThumbs, title, subtitle):
     # baseAxes = (1 * 100) + (len(hdu) * 10) + 1
 
     for i, ((hd, size), stday) in enumerate(hduThumbs):
-        r = int(i/3)
+        r = int(i / 3)
         c = int(i % 3)
-        imageThumb(fig, r, c, hd[0], spec, f'{subtitle}{stday} ({size[0]} arcmin)')
+        imageThumb(fig, r, c, hd[0], spec, f"{subtitle}{stday} ({size[0]}')")
 
     fig.tight_layout(h_pad=4, w_pad=6, rect=(0.07, 0.04, 0.98, 0.99))
     fig.savefig(f'data/plots/{title}_outlier_img.png')
@@ -88,10 +97,13 @@ def imageThumb(fig, r, c, hd, spec, subtitle):
     decPix = hd[0].header['NAXIS1']
     decMin = wcs.wcs_pix2world(((0, -decPix),), 0)[0][1]
     decMax = wcs.wcs_pix2world(((0, decPix),), 0)[0][1]
-    # axisNum = baseAxes + c
+    # extract (or calc) sd of image thumbnail for display
+    # sd hd[0].header['GSTDDEV']
+    sd = np.nanstd(np.hstack(hd[0].data))
     ax = fig.add_subplot(spec[r, c], projection=wcs)
-    ax.set_title(subtitle, fontsize=12)
-    ax.imshow(hd[0].data, origin='lower', cmap=plt.cm.gist_yarg)
+    ax.set_title(f"{subtitle}\n\u03C3={sd:<.1f}", fontsize=12)
+    norm = ImageNormalize(stretch=SqrtStretch())
+    ax.imshow(hd[0].data, origin='lower', cmap=plt.cm.plasma, norm=norm)  # was gist_yarg, inverted grayscale
     ax.grid(color='gray', ls='dotted')
     ra = ax.coords['ra']
     if raMin < raMax:
@@ -110,6 +122,56 @@ def imageThumb(fig, r, c, hd, spec, subtitle):
     #     dec.set_auto_axislabel(False)
     dec.set_ticks(number=4)
     dec.set_ticklabel(exclude_overlapping=True, fontsize=8, ha='center')
+
+
+def saturatedPixelFlag(imageData):
+    headerData = imageData[0].header
+    maxPixValue = max(np.hstack(imageData[0].data))
+    print(f"Infobits:{headerData['INFOBITS']:>016b}, Max: {maxPixValue}")
+    return False
+
+
+def estimateBackground(imageData, id, out=False):
+    sigma_clip = SigmaClip(sigma=3., maxiters=10)
+    bkg_estimator = MedianBackground()
+    bkg = Background2D(imageData[0].data, box_size=(4, 4), filter_size=(2, 2),
+                       sigma_clip=sigma_clip, bkg_estimator=bkg_estimator)
+
+    if out:
+        mean, median, std = sigma_clipped_stats(imageData[0].data, sigma=3.0)
+        meanBkg, medianBkg, stdBkg = sigma_clipped_stats(bkg.background[0].data, sigma=3.0)
+
+        print(f'{id}, Bkg Med     : {bkg.background_median}')
+        print(f'{id}, Bkg RMS Med : {bkg.background_rms_median}')
+        print(f'{id}, sig clip mean - img: {mean:>7.2f}, bkg: {meanBkg:>7.2f}, '
+              f'ratio: {mean / meanBkg:>7.4f}')
+        print(f'{id}, sig clip med. - img: {median:>7.2f}, bkg: {medianBkg:>7.2f}, '
+              f'ratio: {median / medianBkg:>7.4f}')
+        print(f'{id}, sig clip std. - img: {std:>7.2f}, bkg: {stdBkg:>7.2f}, '
+              f'ratio: {std / stdBkg:>7.4f}')
+        print()
+
+    return bkg
+
+
+def showBkgImages(hdu, bkg, dif, title):
+    rows = 1
+    height = 3.5 * rows + 1
+
+    fig = plt.figure(num=4, figsize=(11, height), dpi=300)
+    fig.suptitle(title, fontsize=16)
+    spec = gridspec.GridSpec(ncols=3, nrows=rows, figure=fig)
+    # baseAxes = (1 * 100) + (len(hdu) * 10) + 1
+
+    imageThumb(fig, 0, 0, hdu, spec, f"Image")
+    imageThumb(fig, 0, 1, bkg, spec, f"Background")
+    imageThumb(fig, 0, 2, dif, spec, f"Subtraction")
+
+    fig.tight_layout(h_pad=4, w_pad=6, rect=(0.07, 0.04, 0.98, 0.99))
+    fig.savefig(f'data/plots/{title}_background_img.png')
+    if config.plotToScreen:
+        fig.show()
+    plt.close(fig=4)
 
 
 def image():
@@ -145,8 +207,15 @@ def image():
                     # Get first row images - change to ref image?
                     for f in archiveLCData[a].filtersReturned:
                         refImageData = archiveLCData[a].getRefImage(f)
-                        medianRow = archiveLCData[a].getMedianRow(f)
-                        medianImageData = archiveLCData[a].getImages(medianRow, config.imgSize)
+                        imageExcessSaturation = False
+                        while True:
+                            medianRow = archiveLCData[a].getMedianRow(f)
+                            medianImageData = archiveLCData[a].getImages(medianRow, config.imgSize)
+                            for c, medianImageHDU in enumerate(medianImageData[0]):
+                                print(f'{archiveLCData[a].AO.objectName}... Filter:{f}, Median image:{c}, ', end='')
+                                imageExcessSaturation |= saturatedPixelFlag(medianImageHDU)
+                            if not imageExcessSaturation:
+                                break
 
                         titles = [f'Reference image', f'Median image']
                         showBaseImages([refImageData, medianImageData], f'{AO.objectName} ({f}-band)', titles)
@@ -156,32 +225,106 @@ def image():
                             outliers = archiveLCData[a].table[
                                 (archiveLCData[a].table['outlier'] != 'inside') &
                                 (archiveLCData[a].table['filterID'] == f)
-                            ]
+                                ]
+                            inliers = archiveLCData[a].table[
+                                (archiveLCData[a].table['outlier'] == 'inside') &
+                                (archiveLCData[a].table['filterID'] == f)
+                                ]
                             if config.checkOutliers:
+                                inlierImageData = []
+                                # for 9 of the inlier datapoints in the LC sample
+                                count = 0
+                                for i1, s in inliers.iterrows():
+                                    inlierImageData.append(
+                                        [archiveLCData[a].getImages(i1, [config.imgSize[-1]]), f"{s['filefracday']}"])
+                                    count += 1
+                                    if count == 9:
+                                        break
+
+                                showOutlierImages(inlierImageData,
+                                                  f'{AO.objectName} 9 Inliers '
+                                                  f'({f}-band)', '')
+
                                 outlierImageData = []
                                 # for each of the outlier datapoints in the LC sample
                                 for i1, s in outliers.iterrows():
-                                    outlierImageData.append([archiveLCData[a].getImages(i1, [config.imgSize[-1]]), f"{s['filefracday']}"])
+                                    outlierImageData.append(
+                                        [archiveLCData[a].getImages(i1, [config.imgSize[-1]]), f"{s['filefracday']}"])
 
-                                    if False:  # Don't do this at the moment
-                                        refs = refZTFobj(AO.pos,
-                                                         s[archives[a].timeField],
-                                                         s['filefracday'],
-                                                         s[archives[a].magField])
-                                        ZTFoffset, ZTFsd = getZTFOidOffsetStats(refs)
-                                        print(f'{AO.objectName} - Outlier MJD{s[archives[a].timeField]}: '
-                                              f'Offset = {ZTFoffset:-8.5f} '
-                                              f'SD = {ZTFsd:-8.5f}')
-                                showOutlierImages(outlierImageData, f'{AO.objectName} Outliers ({f}-band)', '')
-                                sdssRefAOs = SDSSdata(archiveLCData[a].median, AO.pos)
-                                if sdssRefAOs.getSamples():
-                                    pass
-                            # return a df of image data frames (idf) to check
-                            # for idf in archiveLCData[a].outlierIDFList:
-                            # refAOList[idf] = archiveLCData[a].getRefObjects(idf)
-                            # get a df of ref objects in idf (with SDSS mag)
-                            # meanMagOffset[idf] = archiveLCData[a].getIDFmagOffset(refAOList[idf])
-                            # get mean mag offset for ref objects in IDF
+                                showOutlierImages(outlierImageData,
+                                                  f'{AO.objectName} Outliers '
+                                                  f'({f}-band)', '')
+
+                                # Now estimate background levels on outliers (compare with ref and median?)
+                                # Maybe use 1' outlier images in order to estimate object positions
+
+                                imgSizeIndx = -1  # should be last image ~ 1'
+
+                                inlierImageData2 = []
+                                # for 9 of the inlier datapoints in the LC sample
+                                count = 0
+                                for i2, s in inliers.iterrows():
+                                    imageData = archiveLCData[a].getImages(i2, [config.imgSize[imgSizeIndx]])
+                                    inlierImageData2.append([imageData, f"{s['filefracday']}"])
+
+                                    HDU = imageData[0][0]
+                                    # data = HDU[0].data
+
+                                    title = f'{AO.objectName} Inliers, ' \
+                                            f'{config.imgSize[imgSizeIndx]} arcmin ' \
+                                            f'({f}-band)'
+
+                                    bkg = estimateBackground(HDU, title, out=True)
+                                    HDUbkg = copy.deepcopy(HDU)
+                                    HDUbkg[0].data = bkg.background
+                                    HDUdif = copy.deepcopy(HDU)
+                                    HDUdif[0].data = HDU[0].data - bkg.background
+                                    showBkgImages(HDU, HDUbkg, HDUdif, f'{AO.objectName} Inlier {s["filefracday"]}, '
+                                                                       f'{config.imgSize[imgSizeIndx]}arcmin '
+                                                                       f'({f}-band)')
+                                    count += 1
+                                    if count == 9:
+                                        break
+
+                                outlierImageData2 = []
+                                # for each of the outlier datapoints in the LC sample
+                                for i2, s in outliers.iterrows():
+                                    imageData = archiveLCData[a].getImages(i2, [config.imgSize[imgSizeIndx]])
+                                    outlierImageData2.append([imageData, f"{s['filefracday']}"])
+
+                                    HDU = imageData[0][0]
+                                    # data = HDU[0].data
+
+                                    title = f'{AO.objectName} Outliers, ' \
+                                            f'{config.imgSize[imgSizeIndx]} arcmin ' \
+                                            f'({f}-band)'
+
+                                    bkg = estimateBackground(HDU, title, out=True)
+                                    HDUbkg = copy.deepcopy(HDU)
+                                    HDUbkg[0].data = bkg.background
+                                    HDUdif = copy.deepcopy(HDU)
+                                    HDUdif[0].data = HDU[0].data - bkg.background
+                                    showBkgImages(HDU, HDUbkg, HDUdif, f'{AO.objectName} Outlier {s["filefracday"]}, '
+                                                                       f'{config.imgSize[imgSizeIndx]}arcmin '
+                                                                       f'({f}-band)')
+
+                                # title = f'{AO.objectName} Outliers, ' \
+                                #         f'{config.imgSize[imgSizeIndx]} arcmin ' \
+                                #         f'({f}-band)'
+                                # showOutlierImages(outlierImageData2, title, '')
+
+                                # HDU = outlierImageData2[0][0][0][0]
+                                # # data = HDU[0].data
+                                #
+                                # bkg = estimateBackground(HDU, title, out=True)
+                                # HDUbkg = copy.deepcopy(HDU)
+                                # HDUbkg[0].data = bkg.background
+                                # HDUdif = copy.deepcopy(HDU)
+                                # HDUdif[0].data = HDU[0].data - bkg.background
+                                # showBkgImages(HDU, HDUbkg, HDUdif, f'{AO.objectName} Outlier background, '
+                                #                                    f'{config.imgSize[imgSizeIndx]}arcmin '
+                                #                                    f'({f}-band)')
+
             else:
                 print(f'No data available or retrieved from {archives[a].name}')
                 print()
@@ -193,9 +336,9 @@ def image():
             AO.finalisePlot(fig, ax, filtersToPlot)
 
     # datetime object containing current date and time
-    now = datetime.now()
-
-    dataFileN = 'LCStats' + now.strftime('%Y%m%d_%H%M%S') + '.csv'
-
-    with open(f'data/{dataFileN}', 'w') as f:
-        objectsList.write(f, format='csv')
+    # now = datetime.now()
+    #
+    # dataFileN = 'LCStats' + now.strftime('%Y%m%d_%H%M%S') + '.csv'
+    #
+    # with open(f'data/{dataFileN}', 'w') as f:
+    #     objectsList.write(f, format='csv')

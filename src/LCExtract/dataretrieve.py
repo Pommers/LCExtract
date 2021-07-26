@@ -553,22 +553,13 @@ class AODataClass:
             upLim = self.median[f] + self.sigma3[f]
             loLim = self.median[f] - self.sigma3[f]
 
-            # r = p[
-            #     (p['ZTFSD'] > (self.meanOfSD - config.sigma * self.SDofSD)) &
-            #     (p['ZTFSD'] < (self.meanOfSD + config.sigma * self.SDofSD))
-            #     ]
+            self.table.loc[((self.table[a.filterField] == f) &
+                            ((self.table[a.magField] - self.table[a.magErr]) >= upLim)),
+                           'outlier'] = 'high'
 
-            self.table['outlier'][
-                (self.table[a.filterField] == f) &
-                ((self.table[a.magField] - self.table[a.magErr]) >= upLim)] = 'high'
-            self.table['outlier'][
-                (self.table[a.filterField] == f) &
-                ((self.table[a.magField] + self.table[a.magErr]) <= loLim)] = 'low'
-            # self.table['outlier'] = np.where(
-            #     ((self.table[a.filterField] == f) &
-            #      ((self.table[a.magField] - self.table[a.magErr]) >= upLim)), 'high', np.where(
-            #         ((self.table[a.filterField] == f) &
-            #          ((self.table[a.magField] + self.table[a.magErr]) <= loLim)), 'low', 'inside'))
+            self.table.loc[((self.table[a.filterField] == f) &
+                            ((self.table[a.magField] + self.table[a.magErr]) <= loLim)),
+                           'outlier'] = 'low'
 
             outlierCount = len(self.table[(self.table[a.filterField] == f) & (self.table['outlier'] != 'inside')])
 

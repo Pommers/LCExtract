@@ -35,7 +35,7 @@ archAvail = "".join(list(archives.keys()))
 
 # Global variables
 coneRadius = 2 / 3600  # 2 arcseconds
-defaultFileName = 'data/test_new.csv'
+defaultFileName = 'data/test_single.csv'
 badResponse = (False, '')
 
 # filter management
@@ -62,7 +62,7 @@ medSD_c = {'g': (5.52593602e-07, -7.84244669e-05,  4.84231576e-03, -1.69929569e-
 
 # set threshold values for determining detections of interest in lightcurves
 threshold = {'countMin': 1, 'countMax': 30, 'countPC': 0.1, 'magScalar': 1.0}
-checkOutliers = False
+checkOutliers = True
 
 # SDSS configuration
 sampleSize = 20

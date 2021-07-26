@@ -251,7 +251,7 @@ def getZTFImage(mjd, filefracday, field, filtercode, ccdid, quadrant, pos, size=
         # if hdul.inf != 200:  # Ensure good response is received back from IRSA
         #     return config.badResponse
 
-        config.LClog.debug(hdul[i].info())
+        # config.LClog.debug(hdul[i].info())
     return hdul, size
 
 
@@ -273,5 +273,5 @@ def getZTFRefImage(field, filtercode, ccdid, quadrant, pos, size=None):
                  + '?' + f'center={pos.ra_str()},{pos.dec_str()}&size={str(size[i])}arcmin&gzip=false'
         hdul.append(fits.open(getURL))
 
-        config.LClog.debug(hdul[i].info())
+        # config.LClog.debug(hdul[i].info())
     return hdul, size
