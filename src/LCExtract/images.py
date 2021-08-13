@@ -100,8 +100,14 @@ def imageThumb(fig, r, c, hd, spec, subtitle):
     # extract (or calc) sd of image thumbnail for display
     # sd hd[0].header['GSTDDEV']
     sd = np.nanstd(np.hstack(hd[0].data))
+    try:
+        see = hd[0].header['SEEING']
+        see_text = f', FWHM={see:<.2f} pix'
+    except KeyError:
+        see_text = ''
+
     ax = fig.add_subplot(spec[r, c], projection=wcs)
-    ax.set_title(f"{subtitle}\n\u03C3={sd:<.1f}", fontsize=12)
+    ax.set_title(f"{subtitle}\n\u03C3={sd:<.1f}{see_text}", fontsize=12)
     norm = ImageNormalize(stretch=SqrtStretch())
     ax.imshow(hd[0].data, origin='lower', cmap=plt.cm.plasma, norm=norm)  # was gist_yarg, inverted grayscale
     ax.grid(color='gray', ls='dotted')
@@ -134,7 +140,7 @@ def saturatedPixelFlag(imageData):
 def estimateBackground(imageData, id, out=False):
     sigma_clip = SigmaClip(sigma=3., maxiters=10)
     bkg_estimator = MedianBackground()
-    bkg = Background2D(imageData[0].data, box_size=(4, 4), filter_size=(2, 2),
+    bkg = Background2D(imageData[0].data, box_size=(12, 12), filter_size=(3, 3),
                        sigma_clip=sigma_clip, bkg_estimator=bkg_estimator)
 
     if out:
@@ -180,6 +186,7 @@ def image():
 
     archiveLCData = {}
     outliersFound = {}
+    consecutive = {}
     cointegration = {}
     refAOList = {}
     meanMagOffset = {}
@@ -195,11 +202,12 @@ def image():
               f"Object name: {AO.objectName} - summary statistics")
         for a in archiveList:
             archiveLCData[a] = AODataClass(AO, archives[a])
+            # get lightcurve data from archive for object
             if archiveLCData[a].getData():
-                AO.incrPlotRows()
-                AO.append_filtersToPlot(archiveLCData[a].filtersReturned)
-                archiveLCData[a].objectOutput()
-                if archives[a].name == 'ZTF':
+                AO.incrPlotRows()  # adjust number of rows to include in plot
+                AO.append_filtersToPlot(archiveLCData[a].filtersReturned)  # adjust filters returned as appropriate
+                archiveLCData[a].objectOutput()  # output summary stats for object to console
+                if archives[a].name == 'ZTF':  # the rest is only for ZTF archive
                     # Save data
                     # archiveLCData[a].objectStatSave(i)
                     # check if archive data has data outside 3 sigma
@@ -229,17 +237,20 @@ def image():
                             inliers = archiveLCData[a].table[
                                 (archiveLCData[a].table['outlier'] == 'inside') &
                                 (archiveLCData[a].table['filterID'] == f)
-                                ]
+                                ].nsmallest(9, 'magmedoffset')
+                            consecutive[f] = archiveLCData[a].areOutliersConsecutive(outliers)
+                            c = consecutive[f]
+                            if c['response']:
+                                print(f'Consecutive detections in {f}-band: {c["maxCount"]} max.  '
+                                      f'Total {c["runs"]} run(s).')
+                            else:
+                                print(f'No {f}-band consecutive detections')
                             if config.checkOutliers:
                                 inlierImageData = []
                                 # for 9 of the inlier datapoints in the LC sample
-                                count = 0
                                 for i1, s in inliers.iterrows():
                                     inlierImageData.append(
                                         [archiveLCData[a].getImages(i1, [config.imgSize[-1]]), f"{s['filefracday']}"])
-                                    count += 1
-                                    if count == 9:
-                                        break
 
                                 showOutlierImages(inlierImageData,
                                                   f'{AO.objectName} 9 Inliers '
@@ -258,11 +269,10 @@ def image():
                                 # Now estimate background levels on outliers (compare with ref and median?)
                                 # Maybe use 1' outlier images in order to estimate object positions
 
-                                imgSizeIndx = -1  # should be last image ~ 1'
+                                imgSizeIndx = 1  # should be last image ~ 1'
 
                                 inlierImageData2 = []
                                 # for 9 of the inlier datapoints in the LC sample
-                                count = 0
                                 for i2, s in inliers.iterrows():
                                     imageData = archiveLCData[a].getImages(i2, [config.imgSize[imgSizeIndx]])
                                     inlierImageData2.append([imageData, f"{s['filefracday']}"])
@@ -274,6 +284,8 @@ def image():
                                             f'{config.imgSize[imgSizeIndx]} arcmin ' \
                                             f'({f}-band)'
 
+                                    print(f'{title}, limiting mag / zero point difference: '
+                                          f'{archiveLCData[a].table.loc[i2, "limitzpdiff"]} mag')
                                     bkg = estimateBackground(HDU, title, out=True)
                                     HDUbkg = copy.deepcopy(HDU)
                                     HDUbkg[0].data = bkg.background
@@ -282,9 +294,6 @@ def image():
                                     showBkgImages(HDU, HDUbkg, HDUdif, f'{AO.objectName} Inlier {s["filefracday"]}, '
                                                                        f'{config.imgSize[imgSizeIndx]}arcmin '
                                                                        f'({f}-band)')
-                                    count += 1
-                                    if count == 9:
-                                        break
 
                                 outlierImageData2 = []
                                 # for each of the outlier datapoints in the LC sample
@@ -299,6 +308,8 @@ def image():
                                             f'{config.imgSize[imgSizeIndx]} arcmin ' \
                                             f'({f}-band)'
 
+                                    print(f'{title}, limiting mag / zero point difference: '
+                                          f'{archiveLCData[a].table.loc[i2, "limitzpdiff"]} mag')
                                     bkg = estimateBackground(HDU, title, out=True)
                                     HDUbkg = copy.deepcopy(HDU)
                                     HDUbkg[0].data = bkg.background
@@ -308,22 +319,16 @@ def image():
                                                                        f'{config.imgSize[imgSizeIndx]}arcmin '
                                                                        f'({f}-band)')
 
-                                # title = f'{AO.objectName} Outliers, ' \
-                                #         f'{config.imgSize[imgSizeIndx]} arcmin ' \
-                                #         f'({f}-band)'
-                                # showOutlierImages(outlierImageData2, title, '')
+                                outlierImageData3 = []
+                                # for each of the outlier datapoints in the LC sample
+                                for i3, s in outliers.iterrows():
+                                    imageData = archiveLCData[a].getImages(i3,
+                                                                           [config.imgSize[imgSizeIndx]],
+                                                                           data=True)
+                                    outlierImageData3.append([imageData, f"{s['filefracday']}"])
 
-                                # HDU = outlierImageData2[0][0][0][0]
-                                # # data = HDU[0].data
-                                #
-                                # bkg = estimateBackground(HDU, title, out=True)
-                                # HDUbkg = copy.deepcopy(HDU)
-                                # HDUbkg[0].data = bkg.background
-                                # HDUdif = copy.deepcopy(HDU)
-                                # HDUdif[0].data = HDU[0].data - bkg.background
-                                # showBkgImages(HDU, HDUbkg, HDUdif, f'{AO.objectName} Outlier background, '
-                                #                                    f'{config.imgSize[imgSizeIndx]}arcmin '
-                                #                                    f'({f}-band)')
+                                    HDU = imageData[0][0]
+                                    # data = HDU[0].data
 
             else:
                 print(f'No data available or retrieved from {archives[a].name}')
@@ -333,7 +338,7 @@ def image():
             fig, ax = AO.preparePlot(filtersToPlot)
             for a in archiveList:
                 archiveLCData[a].plot(fig, ax, archives[a], filtersToPlot)
-            AO.finalisePlot(fig, ax, filtersToPlot)
+            AO.finalisePlot(fig, ax, filtersToPlot, archiveList)
 
     # datetime object containing current date and time
     # now = datetime.now()

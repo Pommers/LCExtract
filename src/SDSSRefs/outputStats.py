@@ -21,7 +21,7 @@ from matplotlib import pyplot as plt
 from SDSSRefs import config
 
 
-def bestFit(x, y, ax):
+def bestFit(x, y, ax, f, name):
     a = min(x)
     b = max(x)
 
@@ -30,12 +30,15 @@ def bestFit(x, y, ax):
 
     deg = 8
     c = np.polyfit(x, y, deg, rcond=None, full=False, w=None, cov=False)
-    config.SDSSlog.info(f'Best fit line: {c}')
+    config.SDSSlog.info(f'{name} best fit line, filter {f}: {c}')
     y1 = 0
     for o in range(deg + 1):
         y1 += c[o] * x1 ** (deg - o)
 
-    ax.plot(x1, y1, "-")
+    colour = 'C0' if f == 'g' else 'C8'
+    line = ':' if name == 'Median' else '--'
+
+    ax.plot(x1, y1, linestyle=line, color=colour, label=f'{name} best-fit ({f})')
 
 
 class Stats:
@@ -67,14 +70,16 @@ class Stats:
             #                c='gray', linestyle='None')
             upBound = filterData[f'MedianOfSD'] + filterData[f'SDofSD']
             lowBound = filterData[f'MedianOfSD'] - filterData[f'SDofSD']
+            bestFit(filterData['mag'], filterData[f'MedianOfSD'], ax[0], f, 'Median')
+            bestFit(filterData['mag'], filterData[f'SDofSD'], ax[0], f, 'SD')
             ax[0].fill_between(filterData['mag'], upBound, lowBound, color=f, alpha=0.2,
                                label=f'{f}-band sample {chr(963)}')
             ax[0].set_ylabel(f'Std Dev ({chr(963)})', fontsize=10)
             # ax[0].semilogy()
             ax[0].set_title('ZTF Lightcurves Std Dev', fontsize=12)
-            ax[0].legend(loc='upper center')
+            ax[0].legend(loc='upper left', ncol=2)
             ax[0].set_ylim(bottom=0)
-            bestFit(filterData['mag'], filterData[f'MedianOfSD'], ax[0])
+
 
             # plot total and used samples from SDSS
             ax[1].plot(filterData['mag'], filterData[f'totalSamplesMag'],

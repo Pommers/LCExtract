@@ -38,7 +38,7 @@ from LCExtract.config import LClog
 from LCExtract.coord import CoordClass
 from LCExtract.filter import filterLineOut
 from LCExtract.utilities import threeSigma
-from LCExtract.ztf import getLightCurveDataZTF, getOIDZTFinfo, OIDListFile, getZTFImage, getZTFRefImage
+from LCExtract.ztf import getLightCurveDataZTF, getOIDZTFinfo, OIDListFile, getZTFImage, getZTFRefImage, getZTFImageData
 from LCExtract.ptf import getLightCurveDataPTF
 from LCExtract.PanSTARRS import getLightCurveDataPanSTARRS
 
@@ -92,7 +92,7 @@ class AstroObjectClass:
 
         return fig, ax
 
-    def finalisePlot(self, fig, ax, filters):
+    def finalisePlot(self, fig, ax, filters, al):
         if len(filters) > 1:
             ax[len(filters) - 1].set_xlabel('Date', fontsize=14)
             ax[0].xaxis.set_major_locator(plt.MaxNLocator(6))
@@ -122,7 +122,7 @@ class AstroObjectClass:
 
         plotName = self.objectName if self.objectName != '' else datetime.datetime.now().strftime("%y%m%d%H%M%S")
         # plot has been created - now save (as PNG) and output to screen (if required)
-        plt.savefig(f'data/plots/{plotName}_{filters}.png')
+        plt.savefig(f'data/plots/{plotName}_{filters}_{al}.png')
         if config.plotToScreen:
             plt.show()
         plt.close(fig=1)
@@ -546,10 +546,18 @@ class AODataClass:
         """
         response = {}
         self.table['outlier'] = 'inside'
+        self.table['magmedoffset'] = 0.0
+
         for f in self.filtersReturned:
             if f == 'i':
                 response[f] = False
                 continue
+
+            # set difference between limiting magnitude and mag zero point
+            self.table['limitzpdiff'] = self.table['magzp'] - self.table['limitmag']
+            # also set absolute difference between magnitude and median for diagnostic
+            self.table.loc[(self.table[a.filterField] == f), 'magmedoffset'] = abs(self.table['mag'] - self.median[f])
+
             upLim = self.median[f] + self.sigma3[f]
             loLim = self.median[f] - self.sigma3[f]
 
@@ -586,7 +594,7 @@ class AODataClass:
         a = self.archive
         df = pd.DataFrame(self.table.loc[np.where(self.table['filterID'] == f)])
         df['medDiff'] = abs(df[a.magField] - self.median[f])
-        row = df[df['medDiff'] == min(df['medDiff'])].index.item()
+        row = df[df['medDiff'] == min(df['medDiff'])].index[0].item()
         return row
 
     def getRefImage(self, f):
@@ -600,13 +608,34 @@ class AODataClass:
         response = getZTFRefImage(field, filtercode, ccdid, quadrant, self.AO.pos, config.imgSize)
         return response
 
-    def getImages(self, row, sizes: list):
+    def getImages(self, row, sizes: list, data=False):
         mjd = self.table.loc[row]['mjd']
         filefracday = self.table.loc[row]['filefracday']
         field = self.table.loc[row]['field']
         filtercode = self.table.loc[row]['filtercode']
         ccdid = self.table.loc[row]['ccdid']
         quadrant = self.table.loc[row]['qid']
-        response = getZTFImage(mjd, filefracday, field, filtercode, ccdid, quadrant, self.AO.pos, sizes)
+        if data:
+            response = getZTFImageData(mjd, filefracday, field, filtercode, ccdid, quadrant, self.AO.pos, sizes)
+        else:
+            response = getZTFImage(mjd, filefracday, field, filtercode, ccdid, quadrant, self.AO.pos, sizes)
 
         return response
+
+    def areOutliersConsecutive(self, outliers):
+        lastnum = -99
+        response = False
+        count, maxCount, runs = (1, 1, 0)
+        for i in range(len(outliers.index)):
+            thisnum = outliers.index[i]
+            if lastnum != -99 and thisnum == lastnum+1:
+                count += 1
+                response = True
+                if count > maxCount:
+                    maxCount = count
+            else:
+                if count > 1:
+                    runs += 1
+                count = 1
+            lastnum = thisnum
+        return {'response': response, 'maxCount': maxCount, 'runs': runs}

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyvo
+import requests
 from astropy.io.votable import parse
 from astropy.table import Table
 from astropy.io import ascii
@@ -235,6 +236,7 @@ def getZTFImage(mjd, filefracday, field, filtercode, ccdid, quadrant, pos, size=
     # get single image
     if size is None:
         size = [5, 1, 0.1]
+
     hdul = []
     baseURL = 'https://irsa.ipac.caltech.edu/ibe/data/ztf/products/sci/'
     dateTime = astropy.time.Time(mjd, format='mjd')
@@ -244,9 +246,51 @@ def getZTFImage(mjd, filefracday, field, filtercode, ccdid, quadrant, pos, size=
         getURL = baseURL + dateTime.strftime('%Y/%m%d/') + fracdate + '/ztf_' + str(filefracday) \
                  + '_' + f'{field:0>6d}' + '_' + filtercode \
                  + '_' + f'c{int(ccdid, base=16):0>2d}' + '_' + imgtypecode \
-                 + '_' + f'q{int(quadrant, base=16):0>1d}' + '_sciimg' + '.fits' \
+                 + '_' + f'q{int(quadrant, base=16):0>1d}' + f'_sciimg.fits' \
                  + '?' + f'center={pos.ra_str()},{pos.dec_str()}&size={str(size[i])}arcmin&gzip=false'
         hdul.append(fits.open(getURL))
+
+        # if hdul.inf != 200:  # Ensure good response is received back from IRSA
+        #     return config.badResponse
+
+        # config.LClog.debug(hdul[i].info())
+    return hdul, size
+
+
+def getZTFImageData(mjd, filefracday, field, filtercode, ccdid, quadrant, pos, size=None):
+    # get single image
+    if size is None:
+        size = [1]
+    ztfImageProducts = ['sciimg.fits', 'mskimg.fits', 'psfcat.fits', 'sexcat.fits', 'sciimgdao.psf',
+                        'sciimgdaopsfcent.fits', 'scimrefdiffimg.fits.fz', 'diffimgpsf.fits',
+                        'sciimlog.txt', 'diffimlog.txt', 'log.txt']
+    hdul = []
+    baseURL = 'https://irsa.ipac.caltech.edu/ibe/data/ztf/products/sci/'
+    dateTime = astropy.time.Time(mjd, format='mjd')
+    fracdate = str(filefracday)[-6:]
+    imgtypecode = 'o'
+    for prod in ztfImageProducts:
+        getURL = baseURL + dateTime.strftime('%Y/%m%d/') + fracdate + '/ztf_' + str(filefracday) \
+                 + '_' + f'{field:0>6d}' + '_' + filtercode \
+                 + '_' + f'c{int(ccdid, base=16):0>2d}' + '_' + imgtypecode \
+                 + '_' + f'q{int(quadrant, base=16):0>1d}' + f'_{prod}' \
+                 + '?' + f'center={pos.ra_str()},{pos.dec_str()}&size={str(size[0])}arcmin&gzip=false'
+        if prod[-4:] == 'fits' or prod[-7:] == 'fits.fz':
+            hdul.append(fits.open(getURL))
+        elif prod[-3:] == 'psf':
+            pass
+            hdul.append(pd.read_fwf(getURL, widths=(14, 13, 13, 13, 13, 13)))
+        elif prod[-3:] == 'txt':
+            hdul.append(requests.get(getURL))
+
+    for hdu in hdul:
+        try:
+            hdu.info()
+        except AttributeError:
+            # ignore for text data
+            pass
+        finally:
+            pass
 
         # if hdul.inf != 200:  # Ensure good response is received back from IRSA
         #     return config.badResponse

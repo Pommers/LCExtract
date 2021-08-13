@@ -183,7 +183,7 @@ class SDSSdata:
 
     def saveSamples(self, initialise):
         if initialise:
-            self.samples.write(self.filename, format='ascii')  # write first data with header (I hope)
+            self.samples.write(self.filename, format='ascii', overwrite=True)  # write first data with header (I hope)
         else:
             with open(self.filename, mode='a') as f:
                 f.seek(0, os.SEEK_END)

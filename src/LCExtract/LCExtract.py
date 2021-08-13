@@ -93,7 +93,7 @@ def LCExtract():
             fig, ax = AO.preparePlot(filtersToPlot)
             for a in archiveList:
                 archiveLCData[a].plot(fig, ax, archives[a], filtersToPlot)
-            AO.finalisePlot(fig, ax, filtersToPlot)
+            AO.finalisePlot(fig, ax, filtersToPlot, archiveList)
 
     # datetime object containing current date and time
     now = datetime.now()
