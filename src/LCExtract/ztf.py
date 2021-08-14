@@ -4,21 +4,15 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 import astropy.time
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import pyvo
 import requests
-from astropy.io.votable import parse
-from astropy.table import Table
-from astropy.io import ascii
 from astropy.io import fits
 
 from LCExtract import config
 from LCExtract.coord import CoordClass, to_string
 from LCExtract.filter import getFilterStr
 from LCExtract.utilities import Spinner
-from SDSSRefs import config as SDSSConfig
 
 delim = "%20"
 

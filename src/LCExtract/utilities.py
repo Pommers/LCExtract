@@ -1,10 +1,10 @@
 import itertools
-import math
 import sys
 import threading
 import time
 from numbers import Number
-import os
+
+from scipy.stats import norm
 
 from LCExtract import config
 
@@ -64,3 +64,7 @@ def threeSigma(archive, filterID, mag) -> float:
     for o in range(len(c)):
         y1 += c[o] * mag ** (len(c) - o - 1)
     return 3 * y1
+
+
+def gaussian(mean, std_dev):
+    return norm(mean, std_dev)
